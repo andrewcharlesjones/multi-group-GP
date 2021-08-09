@@ -2,8 +2,10 @@ from scipy.stats import multivariate_normal as mvn
 from sklearn.gaussian_process.kernels import StationaryKernelMixin, NormalizedKernelMixin, Kernel, Hyperparameter, _check_length_scale
 import numpy as np
 from scipy.spatial.distance import pdist, cdist, squareform
+from RBF import RBF
+from scipy.linalg import block_diag
 
-class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+class RBF_groupwise(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     """Radial-basis function kernel (aka squared-exponential kernel).
     The RBF kernel is a stationary kernel. It is also known as the
     "squared exponential" kernel. It is parameterized by a length scale
@@ -55,48 +57,36 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
            [0.7906..., 0.0652..., 0.1441...]])
     """
 
-    def __init__(self, length_scale=1.0, length_scale_bounds=(1e-5, 1e5), output_variance=1.0, group_diff_param=1.0):
-        self.length_scale = length_scale
+    def __init__(self, length_scale_group0=1.0, length_scale_group1=1.0, length_scale_bounds=(1e-5, 1e5)):
+        self.length_scale_group0 = length_scale_group0
+        self.length_scale_group1 = length_scale_group1
         self.length_scale_bounds = length_scale_bounds
-        self.output_variance = output_variance
-        self.group_diff_param = group_diff_param
 
     @property
     def anisotropic(self):
-        return np.iterable(self.length_scale) and len(self.length_scale) > 1
+        return np.iterable(self.length_scale_group0) and len(self.length_scale_group0) > 1
 
     @property
-    def hyperparameter_length_scale(self):
+    def hyperparameter_length_scale_group0(self):
         if self.anisotropic:
             return Hyperparameter(
-                "length_scale",
+                "length_scale_group0",
                 "numeric",
                 self.length_scale_bounds,
-                len(self.length_scale),
+                len(self.length_scale_group0),
             )
-        return Hyperparameter("length_scale", "numeric", self.length_scale_bounds)
-
-    # @property
-    # def hyperparameter_output_variance(self):
-    #     if self.anisotropic:
-    #         return Hyperparameter(
-    #             "output_variance",
-    #             "numeric",
-    #             self.length_scale_bounds,
-    #             len(self.output_variance),
-    #         )
-    #     return Hyperparameter("output_variance", "numeric", self.length_scale_bounds)
+        return Hyperparameter("length_scale_group0", "numeric", self.length_scale_bounds)
 
     @property
-    def hyperparameter_group_diff_param(self):
+    def hyperparameter_length_scale_group1(self):
         if self.anisotropic:
             return Hyperparameter(
-                "group_diff_param",
+                "length_scale_group1",
                 "numeric",
                 self.length_scale_bounds,
-                len(self.group_diff_param),
+                len(self.length_scale_group1),
             )
-        return Hyperparameter("group_diff_param", "numeric", self.length_scale_bounds)
+        return Hyperparameter("length_scale_group1", "numeric", self.length_scale_bounds)
 
     def __call__(self, X, Y=None, eval_gradient=False):
         """Return the kernel k(X, Y) and optionally its gradient.
@@ -123,22 +113,16 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         """
         X = np.atleast_2d(X)
         p = X.shape[1] - 1
-        length_scale = _check_length_scale(X, self.length_scale)
+        length_scale_group0 = _check_length_scale(X, self.length_scale_group0)
+        length_scale_group1 = _check_length_scale(X, self.length_scale_group1)
         if Y is None:
             X_groups = X[:, -1]
             X = X[:, :-1]
-            diff_group_indicator = (np.expand_dims(X_groups, 1) - np.expand_dims(X_groups, 0))**2
-            diff_group_scaling_term = diff_group_indicator * self.group_diff_param + 1
-            dists = pdist(X / length_scale, metric="sqeuclidean")
-            # convert from upper-triangular matrix to square matrix
-            dists = squareform(dists)
-            dists /= diff_group_scaling_term
-            K = np.exp(-0.5 * dists)
-            np.fill_diagonal(K, 1)
-            K *= self.output_variance
-            K /= ((diff_group_scaling_term)**(0.5 * p))
-            # print(K)
-            # import ipdb; ipdb.set_trace()
+            X0 = X[X_groups == 0, :]
+            X1 = X[X_groups == 1, :]
+            K_X0X0 = RBF(length_scale=length_scale_group0)(X0)
+            K_X1X1 = RBF(length_scale=length_scale_group1)(X1)
+            K = block_diag(K_X0X0, K_X1X1)
         else:
             if eval_gradient:
                 raise ValueError("Gradient can only be evaluated when Y is None.")
@@ -158,33 +142,17 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         if eval_gradient:
             if self.hyperparameter_length_scale.fixed:
                 # Hyperparameter l kept fixed
-                length_scale_gradient = np.empty((X.shape[0], X.shape[0], 0))
+                return K, np.empty((X.shape[0], X.shape[0], 0))
             elif not self.anisotropic or length_scale.shape[0] == 1:
-                K_gradient = (K * dists)[:, :, np.newaxis]
-                length_scale_gradient = K_gradient
+                K_gradient = (K * squareform(dists))[:, :, np.newaxis]
+                return K, K_gradient
             elif self.anisotropic:
                 # We need to recompute the pairwise dimension-wise distances
                 K_gradient = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2 / (
                     length_scale ** 2
                 )
                 K_gradient *= K[..., np.newaxis]
-                length_scale_gradient = K_gradient
-
-            if self.hyperparameter_group_diff_param.fixed:
-                # Hyperparameter alpha kept fixed
-                alpha_gradient = np.empty((X.shape[0], X.shape[0], 0))
-            elif not self.anisotropic or length_scale.shape[0] == 1:
-                K_gradient = (K * dists)[:, :, np.newaxis]
-                alpha_gradient = K_gradient
-            elif self.anisotropic:
-                # We need to recompute the pairwise dimension-wise distances
-                K_gradient = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2 / (
-                    length_scale ** 2
-                )
-                K_gradient *= K[..., np.newaxis]
-                alpha_gradient = K_gradient
-
-            return K, np.dstack((length_scale_gradient, alpha_gradient))
+                return K, K_gradient
         else:
             return K
 
@@ -195,8 +163,6 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                 ", ".join(map("{0:.3g}".format, self.length_scale)),
             )
         else:  # isotropic
-            return "{0}(length_scale={1:.3g}, alpha={2:.3g})".format(
-                self.__class__.__name__, np.ravel(self.length_scale)[0], np.ravel(self.group_diff_param)[0]
+            return "{0}(length_scale={1:.3g})".format(
+                self.__class__.__name__, np.ravel(self.length_scale)[0]
             )
-
-

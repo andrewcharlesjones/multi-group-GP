@@ -55,9 +55,10 @@ class RBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
            [0.7906..., 0.0652..., 0.1441...]])
     """
 
-    def __init__(self, length_scale=1.0, length_scale_bounds=(1e-5, 1e5)):
+    def __init__(self, length_scale=1.0, length_scale_bounds=(1e-5, 1e5), has_group=False):
         self.length_scale = length_scale
         self.length_scale_bounds = length_scale_bounds
+        self.has_group = has_group
 
     @property
     def anisotropic(self):
@@ -98,6 +99,8 @@ class RBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             is True.
         """
         X = np.atleast_2d(X)
+        if self.has_group:
+            X = X[:, :-1]
         length_scale = _check_length_scale(X, self.length_scale)
         if Y is None:
             dists = pdist(X / length_scale, metric="sqeuclidean")

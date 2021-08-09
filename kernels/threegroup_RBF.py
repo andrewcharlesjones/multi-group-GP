@@ -3,7 +3,7 @@ from sklearn.gaussian_process.kernels import StationaryKernelMixin, NormalizedKe
 import numpy as np
 from scipy.spatial.distance import pdist, cdist, squareform
 
-class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+class tgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     """Radial-basis function kernel (aka squared-exponential kernel).
     The RBF kernel is a stationary kernel. It is also known as the
     "squared exponential" kernel. It is parameterized by a length scale
@@ -128,7 +128,9 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             X_groups = X[:, -1]
             X = X[:, :-1]
             diff_group_indicator = (np.expand_dims(X_groups, 1) - np.expand_dims(X_groups, 0))**2
+            diff_group_indicator[diff_group_indicator > 1] = 10
             diff_group_scaling_term = diff_group_indicator * self.group_diff_param + 1
+            # import ipdb; ipdb.set_trace()
             dists = pdist(X / length_scale, metric="sqeuclidean")
             # convert from upper-triangular matrix to square matrix
             dists = squareform(dists)
