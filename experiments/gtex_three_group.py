@@ -1,4 +1,6 @@
-import numpy as np
+# import numpy as np
+import autograd.numpy as np
+import autograd.numpy.random as npr
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Sum
 from scipy.stats import multivariate_normal as mvn
@@ -6,116 +8,253 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from os.path import join as pjoin
+from scipy.optimize import minimize
+from autograd import value_and_grad
+from scipy.stats import pearsonr
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
 
 import sys
+sys.path.append("../models")
+from gaussian_process import make_gp_funs, mg_rbf_covariance, rbf_covariance, mg_matern12_covariance, matern12_covariance, multigroup_rbf_covariance, MGGP, GP
 sys.path.append("../kernels")
-from threegroup_RBF import tgRBF
+from mgRBF import mgRBF
+from mgMatern import mgMatern
 from RBF import RBF
 from RBF_groupwise import RBF_groupwise
 
 import matplotlib
-font = {"size": 20}
+font = {"size": 15}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 DATA_DIR = "../data/gtex"
-DATA_FILE1 = "tibial_artery_expression.csv"
-DATA_FILE2 = "coronary_artery_expression.csv"
-DATA_FILE3 = "breast_mammary_expression.csv"
-OUTPUT_FILE1 = "tibial_artery_ischemic_time.csv"
-OUTPUT_FILE2 = "coronary_artery_ischemic_time.csv"
-OUTPUT_FILE3 = "breast_mammary_ischemic_time.csv"
 
-tissue_names = ["Tibial artery", "Coronary artery", "Breast"]
+tissue_labels = [
+	"Anterior\ncingulate\ncortex",
+	"Frontal\ncortex",
+	"Cortex",
+	"Breast",
+	"Tibial\nartery",
+	"Coronary\nartery",
+	"Uterus",
+	"Vagina"
+]
+data_prefixes = [
+	"anterior_cingulate_cortex",
+	"frontal_cortex",
+	"cortex",
+	"breast_mammary",
+	"tibial_artery",
+	"coronary_artery",
+	"uterus",
+	"vagina"
+]
+data_fnames = [
+	x + "_expression.csv" for x in data_prefixes
+]
+output_fnames = [
+	x + "_ischemic_time.csv" for x in data_prefixes
+]
 
-# data2_files = ["breast_mammary_expression.csv", "coronary_artery_expression.csv"]
-# output2_files = ["breast_mammary_ischemic_time.csv", "coronary_artery_ischemic_time.csv"]
-# tissue_labels = ["Breast", "Coronary artery"]
-
-# plt.figure(figsize=(7 * len(data2_files), 5))
-# for ii in range(len(data2_files)):
-
-
-# DATA_FILE2 = data2_files[ii]
-# OUTPUT_FILE2 = output2_files[ii]
-
-## Load data
-data1 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE1), index_col=0)
-data2 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE2), index_col=0)
-data3 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE3), index_col=0)
-
-output1 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE1), index_col=0)
-output2 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE2), index_col=0)
-output3 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE3), index_col=0)
-
-assert np.array_equal(data1.index.values, output1.index.values)
-assert np.array_equal(data2.index.values, output2.index.values)
-assert np.array_equal(data3.index.values, output3.index.values)
-
-X0, Y0 = data1.values, output1.values
-X1, Y1 = data2.values, output2.values
-X2, Y2 = data3.values, output3.values
+output_col = "TRISCHD"
 
 
-## Log-transform and standardize data
-X0 = np.log(X0 + 1)
-X0 = (X0 - X0.mean(0)) / X0.std(0)
-Y0 = (Y0 - Y0.mean(0)) / Y0.std(0)
+n_repeats = 2
+n_genes = 10
+n_samples = 100
+frac_train = 0.5
 
-X1 = np.log(X1 + 1)
-X1 = (X1 - X1.mean(0)) / X1.std(0)
-Y1 = (Y1 - Y1.mean(0)) / Y1.std(0)
+n_groups = len(tissue_labels)
 
-X2 = np.log(X2 + 1)
-X2 = (X2 - X2.mean(0)) / X2.std(0)
-Y2 = (Y2 - Y2.mean(0)) / Y2.std(0)
+between_group_dist = 1e0
+within_group_dist = 1e-1
+# group_relationships = np.array(
+# 	[
+# 		[1, 1, 0],
+# 		[1, 1, 0],
+# 		[0, 0, 0],
+# 	]
+# )
+group_relationships = np.array(
+	[
+		[1, 1, 1, 0, 0, 0, 0, 0],
+		[1, 1, 1, 0, 0, 0, 0, 0],
+		[1, 1, 1, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 1, 1, 0, 0],
+		[0, 0, 0, 0, 1, 1, 0, 0],
+		[0, 0, 0, 0, 0, 0, 1, 1],
+		[0, 0, 0, 0, 0, 0, 1, 1],
+	]
+)
 
-n0, n1, n2 = X0.shape[0], X1.shape[0], X2.shape[0]
-
-X0_groups = np.ones((n0, 1)) * 2
-X1_groups = np.ones((n1, 1)) * 2.0
-X2_groups = np.zeros((n2, 1))
-X0 = np.hstack([X0, X0_groups])
-X1 = np.hstack([X1, X1_groups])
-X2 = np.hstack([X2, X2_groups])
-
-X = np.concatenate([X0, X1[100:], X2], axis=0)
-Y = np.concatenate([Y0, Y1[100:], Y2])
-
-## Fit union GP
-# gpr = GaussianProcessRegressor(kernel=RBF(), optimizer=None)
-# ll_union = gpr.fit(X[:, :-1], Y).log_marginal_likelihood()
-
-# ## Fit separate GPs
-# gpr = GaussianProcessRegressor(kernel=RBF(), optimizer=None)
-# ll0 = gpr.fit(X[:n0, :-1], Y[:n0]).log_marginal_likelihood()
-# ll1 = gpr.fit(X[n0:, :-1], Y[n0:]).log_marginal_likelihood()
-# ll_sep_gps = ll0 + ll1
-
-## Fit MGGP
-alpha_list = [np.power(10, x * 1.0) for x in np.arange(-6, 6)]
-ll_mggp_results = np.empty(len(alpha_list))
-for jj, alpha in enumerate(alpha_list):
-
-	## Fit MGGP
-	gpr = GaussianProcessRegressor(kernel=tgRBF(group_diff_param=alpha), optimizer=None)
-	ll_mggp = gpr.fit(X, Y).log_marginal_likelihood()
-	ll_mggp_results[jj] = ll_mggp
+group_dist_mat = group_relationships * within_group_dist + np.logical_not(group_relationships).astype(int) * between_group_dist
+np.fill_diagonal(group_dist_mat, 0)
 
 	
-# plt.subplot(1, len(data2_files), ii + 1)
-plt.plot(alpha_list, ll_mggp_results, label="MGGP")
-# plt.axhline(ll_union, label="Union GP", linestyle="--", alpha=0.5, color="green")
-# plt.axhline(ll_sep_gps, label="Separate GPs", linestyle="--", alpha=0.5, color="red")
-plt.xscale("log")
-plt.xlabel(r"$\alpha^2$")
-plt.ylabel(r"$\log p(Y)$")
-# plt.title("Group 1: {}\nGroup 2: {}".format(group1_tissue, tissue_labels[ii]))
-plt.legend()
+errors_mggp = np.empty(n_repeats)
+errors_separated_gp = np.empty(n_repeats)
+errors_union_gp = np.empty(n_repeats)
+
+errors_groupwise_mggp = np.empty((n_repeats, n_groups))
+errors_groupwise_separated_gp = np.empty((n_repeats, n_groups))
+errors_groupwise_union_gp = np.empty((n_repeats, n_groups))
+
+for ii in range(n_repeats):
+
+	X_list = []
+	Y_list = []
+	groups_list = []
+	groups_ints = []
+	for kk in range(n_groups):
+		data = pd.read_csv(pjoin(DATA_DIR, data_fnames[kk]), index_col=0)
+		output = pd.read_csv(pjoin(DATA_DIR, output_fnames[kk]), index_col=0)[output_col]
+		assert np.array_equal(data.index.values, output.index.values)
+
+		curr_X, curr_Y = data.values, output.values
+
+		if kk == 0:
+			rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=10)
+		else:
+			## Subset data
+			rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=n_samples)
+
+		# rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=min(n_samples, curr_X.shape[0]))
+
+		curr_X = curr_X[rand_idx]
+		curr_Y = curr_Y[rand_idx]
+
+		curr_n = curr_X.shape[0]
+
+		curr_group_one_hot = np.zeros(n_groups)
+		curr_group_one_hot[kk] = 1
+		curr_groups = np.repeat([curr_group_one_hot], curr_n, axis=0)
+
+		X_list.append(curr_X)
+		Y_list.append(curr_Y)
+		groups_list.append(curr_groups)
+
+		groups_ints.append(np.repeat(kk, curr_X.shape[0]))
+
+	X_groups = np.concatenate(groups_list, axis=0)
+	groups_ints = np.concatenate(groups_ints)
+
+
+	X = np.concatenate(X_list, axis=0)
+	Y = np.concatenate(Y_list).squeeze()
+	ntotal = X.shape[0]
+
+	X = np.log(X + 1)
+	X = (X - X.mean(0)) / X.std(0)
+
+	# Y = np.log(Y + 1)
+	Y = (Y - Y.mean(0)) / Y.std(0)
+
+	pca = PCA(n_components=n_genes)
+	X = pca.fit_transform(X)
+
+	all_idx = np.arange(ntotal)
+	train_idx, test_idx, _, _ = train_test_split(all_idx, all_idx, stratify=groups_ints, test_size=frac_train, random_state=9)
+
+	X_train = X[train_idx]
+	X_test = X[test_idx]
+	Y_train = Y[train_idx]
+	Y_test = Y[test_idx]
+
+	X_groups_train = X_groups[train_idx]
+	X_groups_test = X_groups[test_idx]
+
+	############################
+	######### Fit MGGP #########
+	############################
+
+	mggp = MGGP(kernel=multigroup_rbf_covariance)
+	mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
+	preds_mean, _ = mggp.predict(X_test, X_groups_test)
+	curr_error = np.mean((Y_test - preds_mean) ** 2)
+	errors_mggp[ii] = curr_error
+	# print("MGGP: {}".format(curr_error))
+
+	for groupnum in range(n_groups):
+		curr_idx = X_groups_test[:, groupnum] == 1
+		curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
+		errors_groupwise_mggp[ii, groupnum] = curr_error
+
+	############################
+	##### Fit separated GP #####
+	############################
+
+	sum_error_sep_gp = 0
+	for groupnum in range(n_groups):
+		curr_X_train = X_train[X_groups_train[:, groupnum] == 1]
+		curr_Y_train = Y_train[X_groups_train[:, groupnum] == 1]
+		curr_X_test = X_test[X_groups_test[:, groupnum] == 1]
+		curr_Y_test = Y_test[X_groups_test[:, groupnum] == 1]
+
+		sep_gp = GP(kernel=rbf_covariance)
+
+		sep_gp.fit(curr_X_train, curr_Y_train)
+		preds_mean, _ = sep_gp.predict(curr_X_test)
+		curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
+		sum_error_sep_gp += curr_error_sep_gp
+
+		errors_groupwise_separated_gp[ii, groupnum] = np.mean((curr_Y_test - preds_mean) ** 2)
+
+	errors_separated_gp[ii] = sum_error_sep_gp / Y_test.shape[0]
+
+
+	############################
+	####### Fit union GP #######
+	############################
+
+	union_gp = GP(kernel=rbf_covariance)
+	union_gp.fit(X_train, Y_train)
+	preds_mean, _ = union_gp.predict(X_test)
+	curr_error = np.mean((Y_test - preds_mean) ** 2)
+	errors_union_gp[ii] = curr_error
+	print("Union: {}".format(curr_error))
+
+
+	for groupnum in range(n_groups):
+		curr_idx = X_groups_test[:, groupnum] == 1
+		curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
+		errors_groupwise_union_gp[ii, groupnum] = curr_error
+
+
+
+results_df = pd.melt(pd.DataFrame({"MGGP": errors_mggp, "Union GP": errors_union_gp, "Separate GPs": errors_separated_gp}))
+
+
+plt.figure(figsize=(14, 5))
+plt.subplot(121)
+sns.boxplot(data=results_df, x="variable", y="value")
+plt.title("Total error")
+plt.xlabel("")
+plt.ylabel("Test MSE")
 plt.tight_layout()
-# plt.savefig("../plots/gtex_experiment.png")
+
+results_groupwise_mggp_df = pd.melt(pd.DataFrame(errors_groupwise_mggp, columns=tissue_labels))
+results_groupwise_mggp_df['model'] = ["MGGP"] * results_groupwise_mggp_df.shape[0]
+results_groupwise_union_df = pd.melt(pd.DataFrame(errors_groupwise_union_gp, columns=tissue_labels))
+results_groupwise_union_df['model'] = ["Union GP"] * results_groupwise_union_df.shape[0]
+results_groupwise_sep_df = pd.melt(pd.DataFrame(errors_groupwise_separated_gp, columns=tissue_labels))
+results_groupwise_sep_df['model'] = ["Separated GPs"] * results_groupwise_sep_df.shape[0]
+
+results_df_groupwise = pd.concat([results_groupwise_mggp_df, results_groupwise_union_df, results_groupwise_sep_df], axis=0)
+
+plt.subplot(122)
+g = sns.boxplot(data=results_df_groupwise, x="variable", y="value", hue="model")
+plt.title("Group-wise error")
+plt.xlabel("")
+plt.ylabel("Test MSE")
+g.legend_.set_title(None)
+plt.tight_layout()
+plt.savefig("../plots/prediction_gtex_experiment_multigroup.png")
 plt.show()
 import ipdb; ipdb.set_trace()
+
+
 
 
 

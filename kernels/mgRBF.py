@@ -137,8 +137,6 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             np.fill_diagonal(K, 1)
             K *= self.output_variance
             K /= ((diff_group_scaling_term)**(0.5 * p))
-            # print(K)
-            # import ipdb; ipdb.set_trace()
         else:
             if eval_gradient:
                 raise ValueError("Gradient can only be evaluated when Y is None.")
@@ -160,7 +158,7 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                 # Hyperparameter l kept fixed
                 length_scale_gradient = np.empty((X.shape[0], X.shape[0], 0))
             elif not self.anisotropic or length_scale.shape[0] == 1:
-                K_gradient = (K * dists)[:, :, np.newaxis]
+                K_gradient = (K * dists)[:, :, np.newaxis] / diff_group_scaling_term
                 length_scale_gradient = K_gradient
             elif self.anisotropic:
                 # We need to recompute the pairwise dimension-wise distances
@@ -170,21 +168,21 @@ class mgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                 K_gradient *= K[..., np.newaxis]
                 length_scale_gradient = K_gradient
 
-            if self.hyperparameter_group_diff_param.fixed:
-                # Hyperparameter alpha kept fixed
-                alpha_gradient = np.empty((X.shape[0], X.shape[0], 0))
-            elif not self.anisotropic or length_scale.shape[0] == 1:
-                K_gradient = (K * dists)[:, :, np.newaxis]
-                alpha_gradient = K_gradient
-            elif self.anisotropic:
-                # We need to recompute the pairwise dimension-wise distances
-                K_gradient = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2 / (
-                    length_scale ** 2
-                )
-                K_gradient *= K[..., np.newaxis]
-                alpha_gradient = K_gradient
+            # if self.hyperparameter_group_diff_param.fixed:
+            #     # Hyperparameter alpha kept fixed
+            #     alpha_gradient = np.empty((X.shape[0], X.shape[0], 0))
+            # elif not self.anisotropic or length_scale.shape[0] == 1:
+            #     K_gradient = (K * dists)[:, :, np.newaxis]
+            #     alpha_gradient = K_gradient
+            # elif self.anisotropic:
+            #     # We need to recompute the pairwise dimension-wise distances
+            #     K_gradient = (X[:, np.newaxis, :] - X[np.newaxis, :, :]) ** 2 / (
+            #         length_scale ** 2
+            #     )
+            #     K_gradient *= K[..., np.newaxis]
+            #     alpha_gradient = K_gradient
 
-            return K, np.dstack((length_scale_gradient, alpha_gradient))
+            return K, length_scale_gradient # np.dstack((length_scale_gradient, alpha_gradient))
         else:
             return K
 

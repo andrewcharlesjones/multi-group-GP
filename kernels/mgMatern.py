@@ -3,7 +3,7 @@ from sklearn.gaussian_process.kernels import StationaryKernelMixin, NormalizedKe
 import numpy as np
 from scipy.spatial.distance import pdist, cdist, squareform
 
-class tgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
+class mgMatern(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     """Radial-basis function kernel (aka squared-exponential kernel).
     The RBF kernel is a stationary kernel. It is also known as the
     "squared exponential" kernel. It is parameterized by a length scale
@@ -55,12 +55,11 @@ class tgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
            [0.7906..., 0.0652..., 0.1441...]])
     """
 
-    def __init__(self, length_scale=1.0, length_scale_bounds=(1e-5, 1e5), output_variance=1.0, group_diff_param=1.0, cross_cov_iota=10.):
+    def __init__(self, length_scale=1.0, length_scale_bounds=(1e-5, 1e5), output_variance=1.0, group_diff_param=1.0):
         self.length_scale = length_scale
         self.length_scale_bounds = length_scale_bounds
         self.output_variance = output_variance
         self.group_diff_param = group_diff_param
-        self.cross_cov_iota = cross_cov_iota
 
     @property
     def anisotropic(self):
@@ -126,25 +125,26 @@ class tgRBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         p = X.shape[1] - 1
         length_scale = _check_length_scale(X, self.length_scale)
         if Y is None:
+            c = 2.
             X_groups = X[:, -1]
             X = X[:, :-1]
             diff_group_indicator = (np.expand_dims(X_groups, 1) - np.expand_dims(X_groups, 0))**2
-            diff_group_indicator[diff_group_indicator > 1] = self.cross_cov_iota
-            # import ipdb; ipdb.set_trace()
-            diff_group_indicator[np.bitwise_and(diff_group_indicator <= 1, diff_group_indicator > 0)] = 1
-            # print(diff_group_indicator)
-            diff_group_scaling_term = diff_group_indicator * self.group_diff_param + 1
-            # import ipdb; ipdb.set_trace()
+            diff_group_scaling_term = diff_group_indicator * self.group_diff_param
             dists = pdist(X / length_scale, metric="sqeuclidean")
             # convert from upper-triangular matrix to square matrix
             dists = squareform(dists)
-            dists /= diff_group_scaling_term
-            K = np.exp(-0.5 * dists)
-            np.fill_diagonal(K, 1)
-            K *= self.output_variance
-            K /= ((diff_group_scaling_term)**(0.5 * p))
-            # print(K)
+
+            first_term = self.output_variance * c**(p * 0.5) / ((diff_group_scaling_term + 1)**0.5 * (diff_group_scaling_term + c)**(p * 0.5))
+            second_term = np.exp(-self.length_scale * ((diff_group_scaling_term + 1) / (diff_group_scaling_term + c))**0.5 * dists)
+
+            K = first_term * second_term
             # import ipdb; ipdb.set_trace()
+
+            # dists /= diff_group_scaling_term
+            # K = np.exp(-0.5 * dists)
+            # np.fill_diagonal(K, 1)
+            # K *= self.output_variance
+            # K /= ((diff_group_scaling_term)**(0.5 * p))
         else:
             if eval_gradient:
                 raise ValueError("Gradient can only be evaluated when Y is None.")

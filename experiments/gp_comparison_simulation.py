@@ -17,7 +17,7 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 n_repeats = 20
-alpha_list = alpha_list = [np.power(10, x * 1.0) for x in np.arange(-15, 1)]
+alpha_list = alpha_list = [np.power(10, x * 1.0) for x in np.arange(-5, 5)]
 
 def separate_GP_experiment():
 	## Generate data from independent GP for each group
@@ -70,6 +70,7 @@ def separate_GP_experiment():
 	## Plot MGGP results
 	results_df = pd.melt(pd.DataFrame(ll_mggp_results, columns=alpha_list))
 	sns.lineplot(data=results_df, x="variable", y="value", label="MGGP", ci="sd")
+	# import ipdb; ipdb.set_trace()
 
 	## Plot sep GP results
 	gp_results_df = pd.melt(pd.DataFrame(np.vstack([ll_sep_gp_results, ll_sep_gp_results]).T, columns=[alpha_list[0], alpha_list[-1]]))
@@ -80,7 +81,7 @@ def separate_GP_experiment():
 	sns.lineplot(data=gp_results_df, x="variable", y="value", label="Union GPs", color="green", ci="sd")
 
 	plt.xscale("log")
-	plt.xlabel(r"$\alpha^2$")
+	plt.xlabel(r"$a^2$")
 	plt.ylabel(r"$\log p(Y)$")
 	plt.legend(loc="lower right")
 	plt.tight_layout()
@@ -150,7 +151,7 @@ def union_GP_experiment():
 	sns.lineplot(data=gp_results_df, x="variable", y="value", label="Union GPs", color="green", ci="sd")
 
 	plt.xscale("log")
-	plt.xlabel(r"$\alpha^2$")
+	plt.xlabel(r"$a^2$")
 	plt.ylabel(r"$\log p(Y)$")
 	plt.legend(loc="lower right")
 	plt.tight_layout()
@@ -218,7 +219,7 @@ def HGP_experiment():
 	gp_results_df = pd.melt(pd.DataFrame(np.vstack([ll_gp_results, ll_gp_results]).T, columns=[alpha_list[0], alpha_list[-1]]))
 	sns.lineplot(data=gp_results_df, x="variable", y="value", label="HGP", color="orange", ci="sd")
 	plt.xscale("log")
-	plt.xlabel(r"$\alpha^2$")
+	plt.xlabel(r"$a^2$")
 	plt.ylabel(r"$\log p(Y)$")
 	plt.legend(loc="lower right")
 	plt.tight_layout()
@@ -300,7 +301,7 @@ def MGGP_experiment():
 
 	plt.xscale("log")
 	# plt.yscale("log")
-	plt.xlabel(r"$\alpha^2$")
+	plt.xlabel(r"$a^2$")
 	plt.ylabel(r"$\log p(Y)$")
 	plt.legend(loc="lower right")
 	plt.tight_layout()
@@ -310,19 +311,19 @@ def MGGP_experiment():
 	# import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
-	plt.figure(figsize=(21, 7))
-	plt.subplot(131)
+	plt.figure(figsize=(28, 7))
+	plt.subplot(141)
 	separate_GP_experiment()
 	plt.title(r"Data generated from: $\textbf{Separated GP}$")
 	# plt.show()
 	# import ipdb; ipdb.set_trace()
-	plt.subplot(132)
+	plt.subplot(142)
 	union_GP_experiment()
 	plt.title(r"Data generated from: $\textbf{Union GP}$")
-	# plt.subplot(143)
-	# HGP_experiment()
-	# plt.title(r"Data generated from: $\textbf{Hierarchical GP}$")
-	plt.subplot(133)
+	plt.subplot(143)
+	HGP_experiment()
+	plt.title(r"Data generated from: $\textbf{Hierarchical GP}$")
+	plt.subplot(144)
 	MGGP_experiment()
 	plt.title(r"Data generated from: $\textbf{Multi-group GP}$")
 	plt.savefig("../plots/simulation_gp_comparison.png")
