@@ -4,3 +4,4 @@ meetings/
 data/
 plots/
 **/.DS_Store
+__pycache__/
