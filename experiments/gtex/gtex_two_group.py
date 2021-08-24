@@ -10,22 +10,18 @@ import pandas as pd
 from os.path import join as pjoin
 from scipy.optimize import minimize
 from autograd import value_and_grad
+from sklearn.decomposition import PCA
 
 import sys
-sys.path.append("../models")
-from gaussian_process import make_gp_funs, mg_rbf_covariance, rbf_covariance
-sys.path.append("../kernels")
-from mgRBF import mgRBF
-from mgMatern import mgMatern
-from RBF import RBF
-from RBF_groupwise import RBF_groupwise
+sys.path.append("../../models")
+from gaussian_process import GP, HGP, MGGP, multigroup_rbf_covariance, rbf_covariance
 
 import matplotlib
 font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-DATA_DIR = "../data/gtex"
+DATA_DIR = "../../data/gtex"
 # DATA_FILE1 = "tibial_artery_expression.csv"
 DATA_FILE1 = "frontal_cortex_expression.csv"
 # DATA_FILE2 = "breast_mammary_expression.csv"
@@ -34,17 +30,19 @@ OUTPUT_FILE1 = "frontal_cortex_ischemic_time.csv"
 # OUTPUT_FILE2 = "breast_mammary_ischemic_time.csv"
 
 # group1_tissue = "Tibial artery"
-group1_tissue = "Anterior cingulate cortex"
+group1_tissue = "Anterior\ncingulate cortex"
 
 data2_files = ["breast_mammary_expression.csv", "anterior_cingulate_cortex_expression.csv"]
 output2_files = ["breast_mammary_ischemic_time.csv", "anterior_cingulate_cortex_ischemic_time.csv"]
 # tissue_labels = ["Group 1: " + group1_tissue + "\nGroup 2: Breast", "Group 1: " + group1_tissue + "\nGroup 2: Coronary artery"]
-tissue_labels = ["Group 1: " + group1_tissue + "\nGroup 2: Breast", "Group 1: " + group1_tissue + "\nGroup 2: Frontal cortex"]
+tissue_labels = [r"$\textbf{Group 1}$: " + group1_tissue + "\n" + r"$\textbf{Group 2}$: Breast", r"$\textbf{Group 1}$: " + group1_tissue + "\n" + r"$\textbf{Group 2}$: Frontal cortex"]
 
-# plt.figure(figsize=(7 * len(data2_files), 5))
+
+output_col = "TRISCHD"
+
 
 n_repeats = 5
-n_genes = 20
+n_genes = 5
 n_samples = 100
 results = np.empty((n_repeats, len(tissue_labels)))
 
@@ -57,8 +55,8 @@ for ii in range(len(data2_files)):
 	data1 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE1), index_col=0)
 	data2 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE2), index_col=0)
 
-	output1 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE1), index_col=0)
-	output2 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE2), index_col=0)
+	output1 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE1), index_col=0)[output_col]
+	output2 = pd.read_csv(pjoin(DATA_DIR, OUTPUT_FILE2), index_col=0)[output_col]
 
 	assert np.array_equal(data1.index.values, output1.index.values)
 	assert np.array_equal(data2.index.values, output2.index.values)
@@ -66,84 +64,44 @@ for ii in range(len(data2_files)):
 	X0, Y0 = data1.values, output1.values
 	X1, Y1 = data2.values, output2.values
 
-
-	## Log-transform and standardize data
-	X0 = np.log(X0 + 1)
-	X0 = (X0 - X0.mean(0)) / X0.std(0)
-	Y0 = (Y0 - Y0.mean(0)) / Y0.std(0)
-
-	X1 = np.log(X1 + 1)
-	X1 = (X1 - X1.mean(0)) / X1.std(0)
-	Y1 = (Y1 - Y1.mean(0)) / Y1.std(0)
-
 	n0, n1 = X0.shape[0], X1.shape[0]
 
-	X0_groups = np.zeros((n0, 1))
-	X1_groups = np.ones((n1, 1))
-	X0 = np.hstack([X0, X0_groups])
-	X1 = np.hstack([X1, X1_groups])
+	X0_groups = np.repeat([[1, 0]], n0, axis=0)
+	X1_groups = np.repeat([[0, 1]], n1, axis=0)
+	X_groups = np.concatenate([X0_groups, X1_groups], axis=0)
 
 	X = np.concatenate([X0, X1], axis=0)
 	Y = np.concatenate([Y0, Y1]).squeeze()
 
+	X = np.log(X + 1)
+	X = (X - X.mean(0)) / X.std(0)
+	Y = (Y - Y.mean(0)) / Y.std(0)
+
+	X = PCA(n_components=n_genes).fit_transform(X)
 	
 
 	for jj in range(n_repeats):
 		
 		if n_samples == None:
-			curr_X = X
-			curr_Y = Y
+			rand_idx = np.arange(X.shape[0])
 		else:
 			## Subset data
 			rand_idx = np.random.choice(np.arange(X.shape[0]), replace=False, size=n_samples)
-			curr_X = X[rand_idx]
-			curr_Y = Y[rand_idx]
 
-		curr_X = np.hstack([curr_X[:, :n_genes], curr_X[:, -1:]])
+		curr_X = X[rand_idx]
+		curr_Y = Y[rand_idx]
+		curr_X_groups = X_groups[rand_idx]
 
-		
+		# curr_X = curr_X[:, :n_genes]
 
-		# rand_idx = np.random.choice(np.arange(X.shape[1]), replace=False, size=n_genes)
-		# curr_X = curr_X[:, rand_idx]
+		############################
+		######### Fit MGGP #########
+		############################
 
-		objective = lambda params: -log_marginal_likelihood(params, curr_X, curr_Y)
-
-		num_params, predict, log_marginal_likelihood, unpack_kernel_params = \
-					make_gp_funs(mg_rbf_covariance, num_cov_params=3) # params here are length scale, output scale, and a (group diff param)
-
-		rs = npr.RandomState(0)
-		init_params = 0.1 * rs.randn(num_params)
-
-		def callback(params):
-			pass
-
-		res = minimize(value_and_grad(objective), init_params, jac=True,
-							  method='CG', callback=callback)
-
-		mean, cov_params, noise_scale = unpack_kernel_params(res.x)
-		output_scale = cov_params[0]
-		group_diff_param = np.exp(cov_params[1])
-		lengthscales = cov_params[2:]
-		curr_a = np.log(group_diff_param)
-		results[jj, ii] = group_diff_param
-
-
-
-		# #### Fit union GP
-		# objective = lambda params: -log_marginal_likelihood(params, curr_X[:, :-1], curr_Y)
-
-		# num_params, predict, log_marginal_likelihood, unpack_kernel_params = \
-		# 			make_gp_funs(rbf_covariance, num_cov_params=2) # params here are length scale and output scale
-
-		# rs = npr.RandomState(0)
-		# init_params = 0.1 * rs.randn(num_params)
-
-		# def callback(params):
-		# 	pass
-
-		# res = minimize(value_and_grad(objective), init_params, jac=True,
-		# 					  method='CG', callback=callback)
-		# import ipdb; ipdb.set_trace()
+		mggp = MGGP(kernel=multigroup_rbf_covariance)
+		mggp.fit(curr_X, curr_Y, curr_X_groups)
+		curr_a = np.exp(mggp.params[3])
+		results[jj, ii] = curr_a
 
 plt.figure(figsize=(7, 5))
 results_df = pd.melt(pd.DataFrame(results, columns=tissue_labels))
@@ -152,7 +110,7 @@ plt.xlabel("")
 plt.ylabel(r"Estimated $a$")
 plt.yscale("log")
 plt.tight_layout()
-plt.savefig("../plots/gtex_experiment_estimate_alpha.png")
+plt.savefig("../../plots/gtex_experiment_estimate_alpha.png")
 plt.show()
 import ipdb; ipdb.set_trace()
 

@@ -12,15 +12,9 @@ from sklearn.gaussian_process.kernels import RBF
 from scipy.optimize import minimize
 from autograd import value_and_grad
 
-sys.path.append("../models")
-from gaussian_process import (
-	make_gp_funs,
-	mg_rbf_covariance,
-	rbf_covariance,
-	threegroup_rbf_covariance,
-	MGGP,
-	GP,
-)
+sys.path.append("../../models")
+from gaussian_process import GP, HGP, MGGP, multigroup_rbf_covariance, rbf_covariance
+
 
 import matplotlib
 
@@ -29,12 +23,12 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 
-n_repeats = 2
+n_repeats = 4
 p = 1
 noise_scale_true = 0.1
 # n0 = 30
-n1 = 30
-n2 = 30
+n1 = 50
+n2 = 50
 n_groups = 3
 # n = n0 + n1 + n2
 frac_train = 0.5
@@ -61,9 +55,9 @@ def experiment():
 			X2_groups = np.repeat([[0, 0, 1]], n2, axis=0)
 			X_groups = np.concatenate([X0_groups, X1_groups, X2_groups], axis=0)
 
-			g12_dist = 1e-1
-			g13_dist = 5.0
-			g23_dist = 5.0
+			g12_dist = 1e-4
+			g13_dist = 10.0
+			g23_dist = 10.0
 			a = 1e0
 			group_dist_mat = np.array(
 				[
@@ -72,7 +66,7 @@ def experiment():
 					[g13_dist, g23_dist, 0.0],
 				]
 			)
-			K_XX = threegroup_rbf_covariance(
+			K_XX = multigroup_rbf_covariance(
 				[np.log(1.0), np.log(a), np.log(1.0)],
 				X,
 				X,
@@ -99,7 +93,7 @@ def experiment():
 			######### Fit MGGP #########
 			############################
 
-			mggp = MGGP(kernel=threegroup_rbf_covariance)
+			mggp = MGGP(kernel=multigroup_rbf_covariance)
 			mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
 			preds_mean, _ = mggp.predict(X_test, X_groups_test)
 
@@ -174,24 +168,24 @@ if __name__ == "__main__":
 
 	results_df, X, Y, X_groups = experiment()
 
-	plt.figure(figsize=(14, 5))
+	plt.figure(figsize=(7, 5))
 
-	plt.subplot(121)
-	for ii in range(n_groups):
-		curr_idx = X_groups[:, ii] == 1
-		plt.scatter(X[curr_idx], Y[curr_idx], label="Group {}".format(ii + 1))
-	plt.xlabel(r"$X$")
-	plt.ylabel(r"$Y$")
-	plt.title("Data")
-	plt.legend()
+	# plt.subplot(121)
+	# for ii in range(n_groups):
+	# 	curr_idx = X_groups[:, ii] == 1
+	# 	plt.scatter(X[curr_idx], Y[curr_idx], label="Group {}".format(ii + 1))
+	# plt.xlabel(r"$X$")
+	# plt.ylabel(r"$Y$")
+	# plt.title("Data")
+	# plt.legend()
 
-	plt.subplot(122)
+	# plt.subplot(122)
 	# sns.boxplot(data=results_df, x="variable", y="value")
 	sns.lineplot(data=results_df, x="variable", y="value", hue="model")
-	plt.ylabel("Prediction MSE")
+	plt.ylabel(r"Prediction MSE, group $1$")
 	plt.xlabel(r"$n$, group 1")
 	plt.tight_layout()
-	plt.savefig("../plots/three_group_simulated_prediction.png")
+	plt.savefig("../../plots/three_group_simulated_prediction.png")
 	plt.show()
 
 	import ipdb

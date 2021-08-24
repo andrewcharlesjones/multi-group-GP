@@ -13,22 +13,23 @@ from autograd import value_and_grad
 from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 import sys
-sys.path.append("../models")
-from gaussian_process import make_gp_funs, mg_rbf_covariance, rbf_covariance, mg_matern12_covariance, matern12_covariance, multigroup_rbf_covariance, MGGP, GP
-sys.path.append("../kernels")
-from mgRBF import mgRBF
-from mgMatern import mgMatern
-from RBF import RBF
-from RBF_groupwise import RBF_groupwise
+sys.path.append("../../models")
+from gaussian_process import make_gp_funs, rbf_covariance, mg_matern12_covariance, matern12_covariance, multigroup_rbf_covariance, MGGP, GP, HGP
+# sys.path.append("../kernels")
+# from mgRBF import mgRBF
+# from mgMatern import mgMatern
+# from RBF import RBF
+# from RBF_groupwise import RBF_groupwise
 
 import matplotlib
 font = {"size": 15}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-DATA_DIR = "../data/gtex"
+DATA_DIR = "../../data/gtex"
 
 tissue_labels = [
 	"Anterior\ncingulate\ncortex",
@@ -60,9 +61,12 @@ output_fnames = [
 output_col = "TRISCHD"
 
 
-n_repeats = 2
-n_genes = 10
-n_samples = 100
+n_repeats = 5
+n_genes = 5
+n_samples = 50
+# n_samples = None
+# n_genes = 2
+# n_samples = 30
 frac_train = 0.5
 
 n_groups = len(tissue_labels)
@@ -96,10 +100,15 @@ np.fill_diagonal(group_dist_mat, 0)
 errors_mggp = np.empty(n_repeats)
 errors_separated_gp = np.empty(n_repeats)
 errors_union_gp = np.empty(n_repeats)
+errors_hgp = np.empty(n_repeats)
 
 errors_groupwise_mggp = np.empty((n_repeats, n_groups))
 errors_groupwise_separated_gp = np.empty((n_repeats, n_groups))
 errors_groupwise_union_gp = np.empty((n_repeats, n_groups))
+errors_groupwise_hgp = np.empty((n_repeats, n_groups))
+
+
+pbar = tqdm(total=n_repeats * 4)
 
 for ii in range(n_repeats):
 
@@ -114,13 +123,16 @@ for ii in range(n_repeats):
 
 		curr_X, curr_Y = data.values, output.values
 
-		if kk == 0:
-			rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=10)
-		else:
-			## Subset data
-			rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=n_samples)
+		# if kk == 0:
+		# 	rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=10)
+		# else:
+		# 	## Subset data
+		# 	rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=min(n_samples, curr_X.shape[0]))
 
-		# rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=min(n_samples, curr_X.shape[0]))
+		if n_samples is None:
+			rand_idx = np.arange(curr_X.shape[0])
+		else:
+			rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=min(n_samples, curr_X.shape[0]))
 
 		curr_X = curr_X[rand_idx]
 		curr_Y = curr_Y[rand_idx]
@@ -136,6 +148,7 @@ for ii in range(n_repeats):
 		groups_list.append(curr_groups)
 
 		groups_ints.append(np.repeat(kk, curr_X.shape[0]))
+
 
 	X_groups = np.concatenate(groups_list, axis=0)
 	groups_ints = np.concatenate(groups_ints)
@@ -181,6 +194,8 @@ for ii in range(n_repeats):
 		curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
 		errors_groupwise_mggp[ii, groupnum] = curr_error
 
+	pbar.update(1)
+
 	############################
 	##### Fit separated GP #####
 	############################
@@ -203,6 +218,8 @@ for ii in range(n_repeats):
 
 	errors_separated_gp[ii] = sum_error_sep_gp / Y_test.shape[0]
 
+	pbar.update(1)
+
 
 	############################
 	####### Fit union GP #######
@@ -213,7 +230,7 @@ for ii in range(n_repeats):
 	preds_mean, _ = union_gp.predict(X_test)
 	curr_error = np.mean((Y_test - preds_mean) ** 2)
 	errors_union_gp[ii] = curr_error
-	print("Union: {}".format(curr_error))
+	# print("Union: {}".format(curr_error))
 
 
 	for groupnum in range(n_groups):
@@ -221,9 +238,28 @@ for ii in range(n_repeats):
 		curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
 		errors_groupwise_union_gp[ii, groupnum] = curr_error
 
+	pbar.update(1)
 
 
-results_df = pd.melt(pd.DataFrame({"MGGP": errors_mggp, "Union GP": errors_union_gp, "Separate GPs": errors_separated_gp}))
+	############################
+	######### Fit HGP ##########
+	############################
+	hgp = HGP(within_group_kernel=rbf_covariance, between_group_kernel=rbf_covariance)
+	hgp.fit(X_train, Y_train, X_groups_train)
+	preds_mean, _ = hgp.predict(X_test, X_groups_test)
+	curr_error = np.mean((Y_test - preds_mean) ** 2)
+	errors_hgp[ii] = curr_error
+
+	for groupnum in range(n_groups):
+		curr_idx = X_groups_test[:, groupnum] == 1
+		curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
+		errors_groupwise_hgp[ii, groupnum] = curr_error
+
+	pbar.update(1)
+
+pbar.close()
+
+results_df = pd.melt(pd.DataFrame({"MGGP": errors_mggp, "Union GP": errors_union_gp, "Separate GPs": errors_separated_gp, "HGP": errors_hgp}))
 
 
 plt.figure(figsize=(14, 5))
@@ -240,8 +276,10 @@ results_groupwise_union_df = pd.melt(pd.DataFrame(errors_groupwise_union_gp, col
 results_groupwise_union_df['model'] = ["Union GP"] * results_groupwise_union_df.shape[0]
 results_groupwise_sep_df = pd.melt(pd.DataFrame(errors_groupwise_separated_gp, columns=tissue_labels))
 results_groupwise_sep_df['model'] = ["Separated GPs"] * results_groupwise_sep_df.shape[0]
+results_groupwise_hgp_df = pd.melt(pd.DataFrame(errors_groupwise_hgp, columns=tissue_labels))
+results_groupwise_hgp_df['model'] = ["HGP"] * results_groupwise_hgp_df.shape[0]
 
-results_df_groupwise = pd.concat([results_groupwise_mggp_df, results_groupwise_union_df, results_groupwise_sep_df], axis=0)
+results_df_groupwise = pd.concat([results_groupwise_mggp_df, results_groupwise_union_df, results_groupwise_sep_df, results_groupwise_hgp_df], axis=0)
 
 plt.subplot(122)
 g = sns.boxplot(data=results_df_groupwise, x="variable", y="value", hue="model")
@@ -250,7 +288,7 @@ plt.xlabel("")
 plt.ylabel("Test MSE")
 g.legend_.set_title(None)
 plt.tight_layout()
-plt.savefig("../plots/prediction_gtex_experiment_multigroup.png")
+plt.savefig("../../plots/prediction_gtex_experiment_multigroup.png")
 plt.show()
 import ipdb; ipdb.set_trace()
 
