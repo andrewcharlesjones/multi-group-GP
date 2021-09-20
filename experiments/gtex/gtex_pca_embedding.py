@@ -14,10 +14,12 @@ from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from sklearn.metrics import pairwise_distances
 
 import sys
 
 sys.path.append("../../models")
+sys.path.append("../../kernels")
 from gaussian_process import (
     MGGP,
     GP,
@@ -27,6 +29,8 @@ from kernels import (
     hierarchical_multigroup_kernel,
     rbf_covariance,
     multigroup_rbf_covariance,
+    multigroup_matern12_covariance,
+    matern12_covariance,
 )
 
 import matplotlib
@@ -34,6 +38,17 @@ import matplotlib
 font = {"size": 15}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
+
+KERNEL_TYPE = "matern"
+
+if KERNEL_TYPE == "matern":
+    gp_kernel = matern12_covariance
+    mggp_kernel = multigroup_matern12_covariance
+    n_mgg_kernel_params = 4
+elif KERNEL_TYPE == "rbf":
+    gp_kernel = rbf_covariance
+    mggp_kernel = multigroup_rbf_covariance
+    n_mgg_kernel_params = 3
 
 DATA_DIR = "../../data/gtex"
 
@@ -57,13 +72,36 @@ data_prefixes = [
     "uterus",
     "vagina",
 ]
+TISSUE_FULL_NAMES = [
+    "Brain - Anterior cingulate cortex (BA24)",
+    "Brain - Frontal Cortex (BA9)",
+    "Brain - Cortex",
+    "Breast - Mammary Tissue",
+    "Artery - Tibial",
+    "Artery - Coronary",
+    "Uterus",
+    "Vagina",
+]
 data_fnames = [x + "_expression.csv" for x in data_prefixes]
 output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
 
 output_col = "TRISCHD"
 
+gene_exp_pca_path = "../../data/gtex/pca/expression_reduced_pca.csv"
+gene_exp_pca = pd.read_csv(gene_exp_pca_path, index_col=0)
 
-n_repeats = 5
+gene_exp_pca = gene_exp_pca[np.isin(gene_exp_pca.tissues, TISSUE_FULL_NAMES)]
+tissue_means = gene_exp_pca.groupby("tissues").mean()
+tissue_means = tissue_means.transpose()[TISSUE_FULL_NAMES].transpose()
+tissue_means["tissues"] = tissue_means.index.values
+assert np.array_equal(tissue_means.tissues.values, TISSUE_FULL_NAMES)
+
+group_dist_mat = pairwise_distances(tissue_means.iloc[:, :-1].values)
+group_dist_mat /= np.max(group_dist_mat)
+# import ipdb; ipdb.set_trace()
+
+
+n_repeats = 2
 n_genes = 5
 n_samples = 100
 # n_samples = None
@@ -75,31 +113,6 @@ n_groups = len(tissue_labels)
 
 between_group_dist = 1e0
 within_group_dist = 1e-1
-# group_relationships = np.array(
-# 	[
-# 		[1, 1, 0],
-# 		[1, 1, 0],
-# 		[0, 0, 0],
-# 	]
-# )
-group_relationships = np.array(
-    [
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 1],
-        [0, 0, 0, 0, 0, 0, 1, 1],
-    ]
-)
-
-group_dist_mat = (
-    group_relationships * within_group_dist
-    + np.logical_not(group_relationships).astype(int) * between_group_dist
-)
-np.fill_diagonal(group_dist_mat, 0)
 
 
 errors_mggp = np.empty(n_repeats)
@@ -121,6 +134,9 @@ for ii in range(n_repeats):
     Y_list = []
     groups_list = []
     groups_ints = []
+    groups_strings = []
+    sample_counter = 0
+    groups_idx = []
     for kk in range(n_groups):
         data = pd.read_csv(pjoin(DATA_DIR, data_fnames[kk]), index_col=0)
         output = pd.read_csv(pjoin(DATA_DIR, output_fnames[kk]), index_col=0)[
@@ -159,9 +175,15 @@ for ii in range(n_repeats):
         groups_list.append(curr_groups)
 
         groups_ints.append(np.repeat(kk, curr_X.shape[0]))
+        groups_strings.append([tissue_labels[kk]] * curr_X.shape[0])
+
+        curr_n_samples = curr_X.shape[0]
+        groups_idx.append(np.arange(sample_counter, sample_counter + curr_n_samples))
+        sample_counter += curr_n_samples
 
     X_groups = np.concatenate(groups_list, axis=0)
     groups_ints = np.concatenate(groups_ints)
+    groups_strings = np.concatenate(groups_strings)
 
     X = np.concatenate(X_list, axis=0)
     Y = np.concatenate(Y_list).squeeze()
@@ -173,8 +195,6 @@ for ii in range(n_repeats):
     # Y = np.log(Y + 1)
     Y = (Y - Y.mean(0)) / Y.std(0)
 
-    pca = PCA(n_components=n_genes)
-    X = pca.fit_transform(X)
 
     all_idx = np.arange(ntotal)
     train_idx, test_idx, _, _ = train_test_split(
@@ -193,20 +213,20 @@ for ii in range(n_repeats):
     ######### Fit MGGP #########
     ############################
 
-    # mggp = MGGP(kernel=multigroup_rbf_covariance)
+    mggp = MGGP(kernel=multigroup_matern12_covariance, num_cov_params=n_mgg_kernel_params)
 
-    hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
-        params,
-        X1,
-        X2,
-        groups1,
-        groups2,
-        group_distances,
-        within_group_kernel=multigroup_rbf_covariance,
-        between_group_kernel=rbf_covariance,
-    )
+    # hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
+    #     params,
+    #     X1,
+    #     X2,
+    #     groups1,
+    #     groups2,
+    #     group_distances,
+    #     within_group_kernel=multigroup_matern12_covariance,
+    #     between_group_kernel=rbf_covariance,
+    # )
 
-    mggp = MGGP(kernel=hier_mg_kernel, num_cov_params=5)
+    # mggp = MGGP(kernel=hier_mg_kernel, num_cov_params=5)
 
     mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
     preds_mean, _ = mggp.predict(X_test, X_groups_test)
@@ -233,7 +253,7 @@ for ii in range(n_repeats):
         curr_X_test = X_test[X_groups_test[:, groupnum] == 1]
         curr_Y_test = Y_test[X_groups_test[:, groupnum] == 1]
 
-        sep_gp = GP(kernel=rbf_covariance)
+        sep_gp = GP(kernel=matern12_covariance)
 
         sep_gp.fit(curr_X_train, curr_Y_train)
         preds_mean, _ = sep_gp.predict(curr_X_test)
@@ -252,7 +272,7 @@ for ii in range(n_repeats):
     ####### Fit union GP #######
     ############################
 
-    union_gp = GP(kernel=rbf_covariance)
+    union_gp = GP(kernel=matern12_covariance)
     union_gp.fit(X_train, Y_train)
     preds_mean, _ = union_gp.predict(X_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -269,7 +289,7 @@ for ii in range(n_repeats):
     ############################
     ######### Fit HGP ##########
     ############################
-    hgp = HGP(within_group_kernel=rbf_covariance, between_group_kernel=rbf_covariance)
+    hgp = HGP(within_group_kernel=matern12_covariance, between_group_kernel=matern12_covariance)
     hgp.fit(X_train, Y_train, X_groups_train)
     preds_mean, _ = hgp.predict(X_test, X_groups_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -340,7 +360,7 @@ plt.xlabel("")
 plt.ylabel("Test MSE")
 g.legend_.set_title(None)
 plt.tight_layout()
-plt.savefig("../../plots/prediction_gtex_experiment_multigroup.png")
+plt.savefig("../../plots/prediction_gtex_experiment_pca_distances_multigroup.png")
 plt.show()
 import ipdb
 

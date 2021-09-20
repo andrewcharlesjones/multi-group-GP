@@ -2,14 +2,10 @@
 import autograd.numpy as np
 import autograd.numpy.random as npr
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Sum
-from scipy.stats import multivariate_normal as mvn
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from os.path import join as pjoin
-from scipy.optimize import minimize
-from autograd import value_and_grad
 from scipy.stats import pearsonr
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
@@ -40,22 +36,24 @@ DATA_DIR = "../../data/gtex"
 tissue_labels = [
     "Anterior\ncingulate\ncortex",
     "Frontal\ncortex",
-    "Cortex",
+    # "Cortex",
+    # "Uterus",
+    # "Vagina",
     "Breast",
-    "Tibial\nartery",
-    "Coronary\nartery",
-    "Uterus",
-    "Vagina",
+    # "Tibial\nartery",
+    # "Coronary\nartery",
+    
 ]
 data_prefixes = [
     "anterior_cingulate_cortex",
     "frontal_cortex",
-    "cortex",
+    # "cortex",
+    # "uterus",
+    # "vagina",
     "breast_mammary",
-    "tibial_artery",
-    "coronary_artery",
-    "uterus",
-    "vagina",
+    # "tibial_artery",
+    # "coronary_artery",
+    
 ]
 data_fnames = [x + "_expression.csv" for x in data_prefixes]
 output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
@@ -64,8 +62,8 @@ output_col = "TRISCHD"
 
 
 n_repeats = 5
-n_genes = 5
-n_samples = 100
+n_genes = 10
+n_samples = 150
 # n_samples = None
 # n_genes = 2
 # n_samples = 30
@@ -74,26 +72,26 @@ frac_train = 0.5
 n_groups = len(tissue_labels)
 
 between_group_dist = 1e0
-within_group_dist = 1e-1
-# group_relationships = np.array(
-# 	[
-# 		[1, 1, 0],
-# 		[1, 1, 0],
-# 		[0, 0, 0],
-# 	]
-# )
+within_group_dist = 1e-4
 group_relationships = np.array(
-    [
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 1],
-        [0, 0, 0, 0, 0, 0, 1, 1],
-    ]
+	[
+		[1, 1, 0],
+		[1, 1, 0],
+		[0, 0, 0],
+	]
 )
+# group_relationships = np.array(
+#     [
+#         [1, 1, 1, 0, 0, 0, 0, 0],
+#         [1, 1, 1, 0, 0, 0, 0, 0],
+#         [1, 1, 1, 0, 0, 0, 0, 0],
+#         [0, 0, 0, 0, 0, 0, 0, 0],
+#         [0, 0, 0, 0, 1, 1, 0, 0],
+#         [0, 0, 0, 0, 1, 1, 0, 0],
+#         [0, 0, 0, 0, 0, 0, 1, 1],
+#         [0, 0, 0, 0, 0, 0, 1, 1],
+#     ]
+# )
 
 group_dist_mat = (
     group_relationships * within_group_dist
@@ -113,7 +111,8 @@ errors_groupwise_union_gp = np.empty((n_repeats, n_groups))
 errors_groupwise_hgp = np.empty((n_repeats, n_groups))
 
 
-pbar = tqdm(total=n_repeats * 4)
+n_models = 2
+pbar = tqdm(total=n_repeats * n_models)
 
 for ii in range(n_repeats):
 
@@ -130,7 +129,7 @@ for ii in range(n_repeats):
 
         curr_X, curr_Y = data.values, output.values
 
-        # if kk == 0:
+        # if kk in [0, 1]:
         # 	rand_idx = np.random.choice(np.arange(curr_X.shape[0]), replace=False, size=10)
         # else:
         # 	## Subset data
@@ -212,57 +211,11 @@ for ii in range(n_repeats):
     preds_mean, _ = mggp.predict(X_test, X_groups_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
     errors_mggp[ii] = curr_error
-    # print("MGGP: {}".format(curr_error))
-    # import ipdb; ipdb.set_trace()
 
     for groupnum in range(n_groups):
         curr_idx = X_groups_test[:, groupnum] == 1
         curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
         errors_groupwise_mggp[ii, groupnum] = curr_error
-
-    pbar.update(1)
-
-    ############################
-    ##### Fit separated GP #####
-    ############################
-
-    sum_error_sep_gp = 0
-    for groupnum in range(n_groups):
-        curr_X_train = X_train[X_groups_train[:, groupnum] == 1]
-        curr_Y_train = Y_train[X_groups_train[:, groupnum] == 1]
-        curr_X_test = X_test[X_groups_test[:, groupnum] == 1]
-        curr_Y_test = Y_test[X_groups_test[:, groupnum] == 1]
-
-        sep_gp = GP(kernel=rbf_covariance)
-
-        sep_gp.fit(curr_X_train, curr_Y_train)
-        preds_mean, _ = sep_gp.predict(curr_X_test)
-        curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
-        sum_error_sep_gp += curr_error_sep_gp
-
-        errors_groupwise_separated_gp[ii, groupnum] = np.mean(
-            (curr_Y_test - preds_mean) ** 2
-        )
-
-    errors_separated_gp[ii] = sum_error_sep_gp / Y_test.shape[0]
-
-    pbar.update(1)
-
-    ############################
-    ####### Fit union GP #######
-    ############################
-
-    union_gp = GP(kernel=rbf_covariance)
-    union_gp.fit(X_train, Y_train)
-    preds_mean, _ = union_gp.predict(X_test)
-    curr_error = np.mean((Y_test - preds_mean) ** 2)
-    errors_union_gp[ii] = curr_error
-    # print("Union: {}".format(curr_error))
-
-    for groupnum in range(n_groups):
-        curr_idx = X_groups_test[:, groupnum] == 1
-        curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
-        errors_groupwise_union_gp[ii, groupnum] = curr_error
 
     pbar.update(1)
 
@@ -288,8 +241,6 @@ results_df = pd.melt(
     pd.DataFrame(
         {
             "MGGP": errors_mggp,
-            "Union GP": errors_union_gp,
-            "Separate GPs": errors_separated_gp,
             "HGP": errors_hgp,
         }
     )
@@ -308,16 +259,6 @@ results_groupwise_mggp_df = pd.melt(
     pd.DataFrame(errors_groupwise_mggp, columns=tissue_labels)
 )
 results_groupwise_mggp_df["model"] = ["MGGP"] * results_groupwise_mggp_df.shape[0]
-results_groupwise_union_df = pd.melt(
-    pd.DataFrame(errors_groupwise_union_gp, columns=tissue_labels)
-)
-results_groupwise_union_df["model"] = ["Union GP"] * results_groupwise_union_df.shape[0]
-results_groupwise_sep_df = pd.melt(
-    pd.DataFrame(errors_groupwise_separated_gp, columns=tissue_labels)
-)
-results_groupwise_sep_df["model"] = ["Separated GPs"] * results_groupwise_sep_df.shape[
-    0
-]
 results_groupwise_hgp_df = pd.melt(
     pd.DataFrame(errors_groupwise_hgp, columns=tissue_labels)
 )
@@ -326,8 +267,6 @@ results_groupwise_hgp_df["model"] = ["HGP"] * results_groupwise_hgp_df.shape[0]
 results_df_groupwise = pd.concat(
     [
         results_groupwise_mggp_df,
-        results_groupwise_union_df,
-        results_groupwise_sep_df,
         results_groupwise_hgp_df,
     ],
     axis=0,
@@ -340,7 +279,7 @@ plt.xlabel("")
 plt.ylabel("Test MSE")
 g.legend_.set_title(None)
 plt.tight_layout()
-plt.savefig("../../plots/prediction_gtex_experiment_multigroup.png")
+plt.savefig("../../plots/gtex_mggp_vs_hggp.png")
 plt.show()
 import ipdb
 

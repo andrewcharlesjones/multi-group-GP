@@ -15,6 +15,11 @@ import seaborn as sns
 import pandas as pd
 from sklearn.gaussian_process.kernels import RBF
 
+import sys
+
+sys.path.append("../../kernels")
+from kernels import hgp_kernel
+
 import matplotlib
 
 font = {"size": 15}
@@ -38,27 +43,47 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
         mean, cov_params, noise_scale = unpack_kernel_params(params)
 
         if is_hgp:
-            extra_args = {"groups1": kwargs['xstar_groups'], "groups2": kwargs['xstar_groups']}
+            extra_args = {
+                "groups1": kwargs["xstar_groups"],
+                "groups2": kwargs["xstar_groups"],
+            }
         elif is_mggp:
-            extra_args = {"groups1": kwargs['xstar_groups'], "groups2": kwargs['xstar_groups'], "group_distances": kwargs['group_distances']}
+            extra_args = {
+                "groups1": kwargs["xstar_groups"],
+                "groups2": kwargs["xstar_groups"],
+                "group_distances": kwargs["group_distances"],
+            }
         else:
             extra_args = {}
 
         cov_f_f = cov_func(cov_params, xstar, xstar, **extra_args)
 
         if is_hgp:
-            extra_args = {"groups1": kwargs['x_groups'], "groups2": kwargs['xstar_groups']}
+            extra_args = {
+                "groups1": kwargs["x_groups"],
+                "groups2": kwargs["xstar_groups"],
+            }
         elif is_mggp:
-            extra_args = {"groups1": kwargs['x_groups'], "groups2": kwargs['xstar_groups'], "group_distances": kwargs['group_distances']}
+            extra_args = {
+                "groups1": kwargs["x_groups"],
+                "groups2": kwargs["xstar_groups"],
+                "group_distances": kwargs["group_distances"],
+            }
 
         cov_y_f = cov_func(cov_params, x, xstar, **extra_args)
 
         if is_hgp:
-            extra_args = {"groups1": kwargs['x_groups'], "groups2": kwargs['x_groups']}
+            extra_args = {"groups1": kwargs["x_groups"], "groups2": kwargs["x_groups"]}
         elif is_mggp:
-            extra_args = {"groups1": kwargs['x_groups'], "groups2": kwargs['x_groups'], "group_distances": kwargs['group_distances']}
+            extra_args = {
+                "groups1": kwargs["x_groups"],
+                "groups2": kwargs["x_groups"],
+                "group_distances": kwargs["group_distances"],
+            }
 
-        cov_y_y = cov_func(cov_params, x, x, **extra_args) + noise_scale * np.eye(len(y))
+        cov_y_y = cov_func(cov_params, x, x, **extra_args) + noise_scale * np.eye(
+            len(y)
+        )
 
         pred_mean = mean + np.dot(solve(cov_y_y, cov_y_f).T, y - mean)
         pred_cov = cov_f_f - np.dot(solve(cov_y_y, cov_y_f).T, cov_y_f)
@@ -68,162 +93,23 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
 
         mean, cov_params, noise_scale = unpack_kernel_params(params)
         if is_hgp:
-            extra_args = {"groups1": kwargs['groups'], "groups2": kwargs['groups']}
+            extra_args = {"groups1": kwargs["groups"], "groups2": kwargs["groups"]}
         elif is_mggp:
-            extra_args = {"groups1": kwargs['groups'], "groups2": kwargs['groups'], "group_distances": kwargs['group_distances']}
+            extra_args = {
+                "groups1": kwargs["groups"],
+                "groups2": kwargs["groups"],
+                "group_distances": kwargs["group_distances"],
+            }
         else:
             extra_args = {}
         # import ipdb; ipdb.set_trace()
-        cov_y_y = cov_func(cov_params, x, x, **extra_args) + noise_scale * np.eye(len(y))
+        cov_y_y = cov_func(cov_params, x, x, **extra_args) + noise_scale * np.eye(
+            len(y)
+        )
         prior_mean = mean * np.ones(len(y))
         return mvn.logpdf(y, prior_mean, cov_y_y)
 
     return num_cov_params + 2, predict, log_marginal_likelihood, unpack_kernel_params
-
-
-# Define an example covariance function.
-def rbf_covariance(kernel_params, x, xp):
-    output_scale = np.exp(kernel_params[0])
-    lengthscales = np.exp(kernel_params[1:])
-
-    diffs = np.expand_dims(x / lengthscales, 1) - np.expand_dims(xp / lengthscales, 0)
-    return output_scale * np.exp(-0.5 * np.sum(diffs ** 2, axis=2))
-
-
-def multigroup_rbf_covariance(kernel_params, X1, X2, groups1, groups2, group_distances):
-    output_scale = np.exp(kernel_params[0])
-    group_diff_param = np.exp(kernel_params[1])  # + 1e-4
-    lengthscales = np.exp(kernel_params[2:])  # + 1e-6
-
-    assert X1.shape[1] == X2.shape[1]
-    assert groups1.shape[1] == groups2.shape[1]
-    assert group_distances.shape[1] == groups1.shape[1]
-
-    p = X1.shape[1]
-    n_groups = groups1.shape[1]
-    # import ipdb; ipdb.set_trace()
-
-    diffs = np.expand_dims(X1 / lengthscales, 1) - np.expand_dims(X2 / lengthscales, 0)
-    dists = np.sum(diffs ** 2, axis=2)
-
-    diff_group_indicator = (
-        np.expand_dims(groups1, 1) - np.expand_dims(groups2, 0)
-    ) ** 2
-    diff_group_scaling_term = np.zeros(dists.shape)
-
-    for ii in range(n_groups):
-
-        for jj in range(ii):
-
-            if ii == jj:
-                continue
-
-            curr_group_distance = group_distances[ii, jj]
-            
-
-            diff_group_scaling_term += (curr_group_distance * group_diff_param ** 2 + 1) * (
-                np.logical_and(
-                    diff_group_indicator[:, :, ii] == 1, diff_group_indicator[:, :, jj] == 1
-                )
-            ).astype(int)
-
-    samegroup_mask = (diff_group_scaling_term == 0).astype(int)
-    diff_group_scaling_term += samegroup_mask
-
-    dists /= diff_group_scaling_term
-
-    K = output_scale * np.exp(-0.5 * dists)
-    K /= (diff_group_scaling_term) ** (0.5 * p)
-
-    return K
-
-
-def matern12_covariance(kernel_params, x, xp):
-
-    output_scale = np.exp(kernel_params[0])
-    # group_diff_param = np.exp(kernel_params[1])# + 0.0001
-    lengthscales = np.exp(kernel_params[1:])
-    c = 1.0
-
-    assert x.shape[1] == xp.shape[1]
-    p = x.shape[1]
-
-    # x_groups = x[:, -1]
-    # x = x[:, :-1]
-    # xp_groups = xp[:, -1]
-    # xp = xp[:, :-1]
-    #
-    diffs = (
-        np.expand_dims(x / lengthscales, 1)
-        - np.expand_dims(xp / lengthscales, 0)
-        + 1e-6
-    )
-
-    dists = np.linalg.norm(diffs, axis=2, ord=2)
-
-    exponential_term = np.exp(-((1 / c) ** 0.5) * dists)
-    premult_term = output_scale
-
-    # K = output_scale * c**(0.5 * p) * (1 + np.sqrt(3) * dists) * np.exp(-np.sqrt(3) * dists)
-    # K /= ((diff_group_scaling_term)**(0.5 * p))
-
-    K = premult_term * exponential_term
-    # import ipdb ;ipdb.set_trace()
-
-    return K
-
-
-def mg_matern12_covariance(kernel_params, x, xp):
-
-    output_scale = np.exp(kernel_params[0])
-    group_diff_param = np.exp(kernel_params[1])  # + 0.0001
-    lengthscales = np.exp(kernel_params[2:])
-    c = 1.0
-
-    assert x.shape[1] == xp.shape[1]
-    p = x.shape[1] - 1
-
-    x_groups = x[:, -1]
-    x = x[:, :-1]
-    xp_groups = xp[:, -1]
-    xp = xp[:, :-1]
-
-    diffs = (
-        np.expand_dims(x / lengthscales, 1)
-        - np.expand_dims(xp / lengthscales, 0)
-        + 1e-6
-    )
-    # import ipdb ;ipdb.set_trace()
-    # dists = np.sqrt(np.sum(diffs**2, axis=2))
-    dists = np.linalg.norm(diffs, axis=2, ord=2)
-
-    diff_group_indicator = (
-        np.expand_dims(x_groups, 1) - np.expand_dims(xp_groups, 0)
-    ) ** 2
-    diff_group_scaling_term = diff_group_indicator * group_diff_param ** 2
-    # dists /= diff_group_scaling_term
-
-    exponential_term = np.exp(
-        -(diff_group_scaling_term + 1)
-        / (output_scale * c ** (0.5 * p) + c) ** 0.5
-        * dists
-    )
-    premult_term = (
-        output_scale
-        * c ** (0.5 * p)
-        / (
-            (diff_group_scaling_term + 1) ** 0.5
-            * (diff_group_scaling_term + c) ** (0.5 * c)
-        )
-    )
-
-    # K = output_scale * c**(0.5 * p) * (1 + np.sqrt(3) * dists) * np.exp(-np.sqrt(3) * dists)
-    # K /= ((diff_group_scaling_term)**(0.5 * p))
-
-    K = premult_term * exponential_term
-    # import ipdb ;ipdb.set_trace()
-
-    return K
 
 
 class GP:
@@ -267,7 +153,6 @@ class GP:
         )
 
         self.params = res.x
-        
 
     def predict(self, X_test):
 
@@ -275,28 +160,11 @@ class GP:
         return preds_mean, preds_cov
 
 
-def hgp_kernel(params, X1, X2, groups1, groups2, within_group_kernel, between_group_kernel):
-
-    diff_group_indicator = (
-        np.expand_dims(groups1, 1) - np.expand_dims(groups2, 0)
-    ) ** 2
-    same_group_mask = (np.sum(diff_group_indicator, axis=2) == 0).astype(int)    
-
-    n_params_total = len(params)
-    within_group_params = params[:n_params_total//2]
-    between_group_params = params[n_params_total//2:]
-
-    K_within = within_group_kernel(within_group_params, X1, X2)
-    K_between = between_group_kernel(between_group_params, X1, X2)
-
-    K = K_between + same_group_mask * K_within
-
-    return K
-
-
 class HGP:
     def __init__(self, within_group_kernel, between_group_kernel):
-        self.kernel = lambda params, X1, X2, groups1, groups2: hgp_kernel(params, X1, X2, groups1, groups2, within_group_kernel, between_group_kernel)
+        self.kernel = lambda params, X1, X2, groups1, groups2: hgp_kernel(
+            params, X1, X2, groups1, groups2, within_group_kernel, between_group_kernel
+        )
         self.rs = npr.RandomState(0)
 
         # Build model
@@ -306,7 +174,7 @@ class HGP:
             log_marginal_likelihood,
             unpack_kernel_params,
         ) = make_gp_funs(
-            self.kernel, num_cov_params=2*2, is_hgp=True
+            self.kernel, num_cov_params=2 * 2, is_hgp=True
         )  # params here are length scale, output scale (for w/in group and b/w group)
 
         self.num_params = num_params
@@ -323,7 +191,9 @@ class HGP:
         self.y = y
         self.groups = groups
 
-        objective = lambda params: -self.log_marginal_likelihood(params, self.X, self.y, groups=groups)
+        objective = lambda params: -self.log_marginal_likelihood(
+            params, self.X, self.y, groups=groups
+        )
 
         # Initialize covariance parameters
         init_params = 0.1 * self.rs.randn(self.num_params)
@@ -337,16 +207,22 @@ class HGP:
         )
 
         self.params = res.x
-        
 
     def predict(self, X_test, groups_test):
 
-        preds_mean, preds_cov = self.predict_fn(self.params, self.X, self.y, X_test, x_groups=self.groups, xstar_groups=groups_test)
+        preds_mean, preds_cov = self.predict_fn(
+            self.params,
+            self.X,
+            self.y,
+            X_test,
+            x_groups=self.groups,
+            xstar_groups=groups_test,
+        )
         return preds_mean, preds_cov
 
 
 class MGGP:
-    def __init__(self, kernel):
+    def __init__(self, kernel, num_cov_params=3):
         self.kernel = kernel
         self.rs = npr.RandomState(0)
 
@@ -357,7 +233,7 @@ class MGGP:
             log_marginal_likelihood,
             unpack_kernel_params,
         ) = make_gp_funs(
-            self.kernel, num_cov_params=3, is_mggp=True
+            self.kernel, num_cov_params=num_cov_params, is_mggp=True
         )  # params here are length scale, output scale, and a (group diff param)
 
         self.num_params = num_params
@@ -378,9 +254,13 @@ class MGGP:
         else:
             self.group_distances = group_distances
 
-
-
-        objective = lambda params: -self.log_marginal_likelihood(params, self.X, self.y, groups=self.groups, group_distances=self.group_distances)
+        objective = lambda params: -self.log_marginal_likelihood(
+            params,
+            self.X,
+            self.y,
+            groups=self.groups,
+            group_distances=self.group_distances,
+        )
 
         # Initialize covariance parameters
         init_params = 0.1 * self.rs.randn(self.num_params)
@@ -397,11 +277,24 @@ class MGGP:
 
     def predict(self, X_test, groups_test):
 
-        preds_mean, preds_cov = self.predict_fn(self.params, self.X, self.y, X_test, x_groups=self.groups, xstar_groups=groups_test, group_distances=self.group_distances)
+        preds_mean, preds_cov = self.predict_fn(
+            self.params,
+            self.X,
+            self.y,
+            X_test,
+            x_groups=self.groups,
+            xstar_groups=groups_test,
+            group_distances=self.group_distances,
+        )
         return preds_mean, preds_cov
 
 
 if __name__ == "__main__":
+
+    import sys
+
+    sys.path.append("../kernels")
+    from kernels import multigroup_rbf_covariance
 
     n0, n1 = 50, 50
     p = 1
@@ -423,9 +316,7 @@ if __name__ == "__main__":
         X_groups,
         group_dist_mat,
     )
-    Y = mvnpy.rvs(np.zeros(n), K_XX) + np.random.normal(
-        scale=noise_scale_true, size=n
-    )
+    Y = mvnpy.rvs(np.zeros(n), K_XX) + np.random.normal(scale=noise_scale_true, size=n)
 
     mggp = MGGP(kernel=multigroup_rbf_covariance)
     mggp.fit(X, Y, groups=X_groups)
@@ -435,22 +326,28 @@ if __name__ == "__main__":
     preds_mean_g0, _ = mggp.predict(X_test, np.repeat([[1, 0]], n_test, axis=0))
     preds_mean_g1, _ = mggp.predict(X_test, np.repeat([[0, 1]], n_test, axis=0))
 
-
     plt.figure(figsize=(12, 8))
     plt.subplot(211)
-    plt.scatter(X[X_groups[:, 0] == 1], Y[X_groups[:, 0] == 1], label="Group 1", color="blue")
-    plt.scatter(X[X_groups[:, 1] == 1], Y[X_groups[:, 1] == 1], label="Group 2", color="orange")
+    plt.scatter(
+        X[X_groups[:, 0] == 1], Y[X_groups[:, 0] == 1], label="Group 1", color="blue"
+    )
+    plt.scatter(
+        X[X_groups[:, 1] == 1], Y[X_groups[:, 1] == 1], label="Group 2", color="orange"
+    )
     plt.title("Data")
     plt.legend()
     plt.subplot(212)
-    plt.scatter(X[X_groups[:, 0] == 1], Y[X_groups[:, 0] == 1], label="Group 1", color="blue")
-    plt.scatter(X[X_groups[:, 1] == 1], Y[X_groups[:, 1] == 1], label="Group 2", color="orange")
+    plt.scatter(
+        X[X_groups[:, 0] == 1], Y[X_groups[:, 0] == 1], label="Group 1", color="blue"
+    )
+    plt.scatter(
+        X[X_groups[:, 1] == 1], Y[X_groups[:, 1] == 1], label="Group 2", color="orange"
+    )
     plt.plot(X_test, preds_mean_g0, color="blue")
     plt.plot(X_test, preds_mean_g1, color="orange")
     plt.title("Predictions")
     plt.legend()
     plt.show()
-
 
     import ipdb
 
