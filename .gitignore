@@ -5,3 +5,4 @@ data/
 plots/
 **/.DS_Store
 __pycache__/
+cached_models/
