@@ -63,8 +63,8 @@ output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
 output_col = "TRISCHD"
 
 
-n_repeats = 5
-n_genes = 5
+n_repeats = 2
+n_genes = 10
 n_samples = 100
 # n_samples = None
 # n_genes = 2
@@ -338,7 +338,8 @@ g = sns.boxplot(data=results_df_groupwise, x="variable", y="value", hue="model")
 plt.title("Group-wise error")
 plt.xlabel("")
 plt.ylabel("Test MSE")
-g.legend_.set_title(None)
+# g.legend_.set_title(None)
+g.legend_.remove()
 plt.tight_layout()
 plt.savefig("../../plots/prediction_gtex_experiment_multigroup.png")
 plt.show()
