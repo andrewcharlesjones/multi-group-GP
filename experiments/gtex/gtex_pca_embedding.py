@@ -195,7 +195,6 @@ for ii in range(n_repeats):
     # Y = np.log(Y + 1)
     Y = (Y - Y.mean(0)) / Y.std(0)
 
-
     all_idx = np.arange(ntotal)
     train_idx, test_idx, _, _ = train_test_split(
         all_idx, all_idx, stratify=groups_ints, test_size=frac_train, random_state=9
@@ -213,7 +212,9 @@ for ii in range(n_repeats):
     ######### Fit MGGP #########
     ############################
 
-    mggp = MGGP(kernel=multigroup_matern12_covariance, num_cov_params=n_mgg_kernel_params)
+    mggp = MGGP(
+        kernel=multigroup_matern12_covariance, num_cov_params=n_mgg_kernel_params
+    )
 
     # hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
     #     params,
@@ -289,7 +290,10 @@ for ii in range(n_repeats):
     ############################
     ######### Fit HGP ##########
     ############################
-    hgp = HGP(within_group_kernel=matern12_covariance, between_group_kernel=matern12_covariance)
+    hgp = HGP(
+        within_group_kernel=matern12_covariance,
+        between_group_kernel=matern12_covariance,
+    )
     hgp.fit(X_train, Y_train, X_groups_train)
     preds_mean, _ = hgp.predict(X_test, X_groups_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)

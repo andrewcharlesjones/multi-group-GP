@@ -23,9 +23,9 @@ def rbf_covariance(kernel_params, x, xp):
 def multigroup_rbf_covariance(kernel_params, X1, X2, groups1, groups2, group_distances):
 
     assert len(kernel_params) == 3
-    output_scale = np.exp(kernel_params[0])
-    group_diff_param = np.exp(kernel_params[1])
-    lengthscales = np.exp(kernel_params[2])
+    output_scale = np.exp(kernel_params[0]) + 1e-6
+    group_diff_param = np.exp(kernel_params[1]) + 1e-6
+    lengthscales = np.exp(kernel_params[2]) + 1e-6
 
     assert X1.shape[1] == X2.shape[1]
     assert groups1.shape[1] == groups2.shape[1]

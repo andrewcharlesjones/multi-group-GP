@@ -42,7 +42,6 @@ tissue_labels = [
     "Breast",
     # "Tibial\nartery",
     # "Coronary\nartery",
-    
 ]
 data_prefixes = [
     "anterior_cingulate_cortex",
@@ -53,7 +52,6 @@ data_prefixes = [
     "breast_mammary",
     # "tibial_artery",
     # "coronary_artery",
-    
 ]
 data_fnames = [x + "_expression.csv" for x in data_prefixes]
 output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
@@ -74,11 +72,11 @@ n_groups = len(tissue_labels)
 between_group_dist = 1e0
 within_group_dist = 1e-4
 group_relationships = np.array(
-	[
-		[1, 1, 0],
-		[1, 1, 0],
-		[0, 0, 0],
-	]
+    [
+        [1, 1, 0],
+        [1, 1, 0],
+        [0, 0, 0],
+    ]
 )
 # group_relationships = np.array(
 #     [

@@ -265,12 +265,15 @@ class MGGP:
         # Initialize covariance parameters
         init_params = 0.1 * self.rs.randn(self.num_params)
 
+        lower_bound = np.log(1e-4)
+        upper_bound = np.log(1e4)
         res = minimize(
             value_and_grad(objective),
             init_params,
             jac=True,
-            method="CG",
+            # method="CG",
             callback=self.callback,
+            bounds=[(None, None), (None, None), (lower_bound, upper_bound), (lower_bound, upper_bound), (lower_bound, upper_bound)],
         )
 
         self.params = res.x

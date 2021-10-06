@@ -4,33 +4,53 @@ import seaborn as sns
 import pandas as pd
 from os.path import join as pjoin
 from sklearn.linear_model import LinearRegression
+import os
+from tqdm import tqdm
+
 
 DATA_DIR = "/Users/andrewjones/Documents/beehive/rrr/PRRR/data"
+SAVE_DIR = "../../data/gtex"
 # DATA_FILE1 = "gtex_expression_Artery - Tibial.csv"
 # DATA_FILE2 = "gtex_expression_Artery - Coronary.csv"
 # DATA_FILE3 = "gtex_expression_Breast - Mammary Tissue.csv"
 
-DATA_FILES = [
-    "gtex_expression_Artery - Tibial.csv",
-    "gtex_expression_Artery - Coronary.csv",
-    "gtex_expression_Breast - Mammary Tissue.csv",
-    "gtex_expression_Brain - Frontal Cortex (BA9).csv",
-    "gtex_expression_Brain - Anterior cingulate cortex (BA24).csv",
-    "gtex_expression_Brain - Cortex.csv",
-    "gtex_expression_Uterus.csv",
-    "gtex_expression_Vagina.csv",
-]
 
-TISSUE_NAMES = [
-    "tibial_artery",
-    "coronary_artery",
-    "breast_mammary",
-    "frontal_cortex",
-    "anterior_cingulate_cortex",
-    "cortex",
-    "uterus",
-    "vagina",
-]
+datafile_prefix = "gtex_expression_"
+DATA_FILES = [x for x in os.listdir(DATA_DIR) if x.startswith(datafile_prefix)]
+# import ipdb; ipdb.set_trace()
+
+TISSUE_NAMES = [x[len(datafile_prefix):-4].replace(" - ", "_").replace(" ", "_") for x in DATA_FILES]
+
+## Get all shared genes between tissue types
+# all_shared_genes = pd.read_csv(pjoin(DATA_DIR, DATA_FILES[0]), index_col=0, nrows=0).columns
+# import ipdb; ipdb.set_trace()
+# for jj in np.arange(1, 3): #len(TISSUE_NAMES)):
+#     curr_genes = pd.read_csv(pjoin(DATA_DIR, DATA_FILES[jj]), index_col=0, nrows=0).columns.tolist()
+#     all_shared_genes = np.intersect1d(curr_genes, all_shared_genes)
+
+
+
+# DATA_FILES = [
+#     "gtex_expression_Artery - Tibial.csv",
+#     "gtex_expression_Artery - Coronary.csv",
+#     "gtex_expression_Breast - Mammary Tissue.csv",
+#     "gtex_expression_Brain - Frontal Cortex (BA9).csv",
+#     "gtex_expression_Brain - Anterior cingulate cortex (BA24).csv",
+#     "gtex_expression_Brain - Cortex.csv",
+#     "gtex_expression_Uterus.csv",
+#     "gtex_expression_Vagina.csv",
+# ]
+
+# TISSUE_NAMES = [
+#     "tibial_artery",
+#     "coronary_artery",
+#     "breast_mammary",
+#     "frontal_cortex",
+#     "anterior_cingulate_cortex",
+#     "cortex",
+#     "uterus",
+#     "vagina",
+# ]
 
 METADATA_FILE = "GTEx_Analysis_2017-06-05_v8_Annotations_SubjectPhenotypesDS.txt"
 metadata = pd.read_table(pjoin(DATA_DIR, METADATA_FILE))
@@ -39,14 +59,40 @@ metadata_IT = metadata_IT.set_index("SUBJID")
 
 N_GENES = 100
 
-for ii, DATA_FILE in enumerate(DATA_FILES):
+# missing_tissues = ['Brain_Anterior_cingulate_cortex_(BA24)_expression.csv',
+#  'Brain_Caudate_(basal_ganglia)_expression.csv',
+#  'Brain_Cerebellum_expression.csv',
+#  'Brain_Frontal_Cortex_(BA9)_expression.csv',
+#  'Brain_Hippocampus_expression.csv', 'Colon_Transverse_expression.csv']
+
+for ii in tqdm(range(len(DATA_FILES))):
+
+    
+
+    curr_gene_exp_fname = pjoin(SAVE_DIR, "{}_expression.csv".format(TISSUE_NAMES[ii]))
+    # if os.path.isfile(curr_gene_exp_fname) and ii != 0:
+    #     continue
+
+    # if ii != 0 and "{}_expression.csv".format(TISSUE_NAMES[ii]) not in missing_tissues:
+    #     continue
+
+    print("Saving {}".format(TISSUE_NAMES[ii]))
+
+    DATA_FILE = DATA_FILES[ii]
+    if DATA_FILE == "gtex_expression_Muscle - Skeletal.csv":
+        continue
+    
+
     data = pd.read_csv(pjoin(DATA_DIR, DATA_FILE), index_col=0)
 
-    gene_idx_sorted_by_variance = np.argsort(-data.var(0).values)
+    
+
     if ii == 0:
+
+        gene_idx_sorted_by_variance = np.argsort(-data.var(0).values)
         high_variance_genes = data.columns.values[gene_idx_sorted_by_variance[:N_GENES]]
-    else:
-        high_variance_genes = np.intersect1d(high_variance_genes, data.columns.values)
+    # else:
+    #     high_variance_genes = np.intersect1d(high_variance_genes, data.columns.values)
 
     data_high_variance = data[high_variance_genes]
 
@@ -62,16 +108,20 @@ for ii, DATA_FILE in enumerate(DATA_FILES):
     data_subject_ids = data_high_variance.index.values
     metadata_IT_data = metadata_IT.transpose()[data_subject_ids].transpose()
 
-    # import ipdb; ipdb.set_trace()
-
-    data_high_variance.to_csv("../data/gtex/{}_expression.csv".format(TISSUE_NAMES[ii]))
-    metadata_IT_data.to_csv(
-        "../data/gtex/{}_ischemic_time.csv".format(TISSUE_NAMES[ii])
-    )
-
     assert np.array_equal(
         data_high_variance.index.values, metadata_IT_data.index.values
     )
+    # import ipdb; ipdb.set_trace()
+
+    assert data_high_variance.shape[1] == N_GENES
+    assert np.array_equal(data_high_variance.columns.values, high_variance_genes)
+
+    data_high_variance.to_csv(curr_gene_exp_fname)
+    metadata_IT_data.to_csv(
+        pjoin(SAVE_DIR, "{}_ischemic_time.csv".format(TISSUE_NAMES[ii]))
+    )
+
+    
 
     # reg_data = np.log(data_high_variance.values + 1)
     # reg_data = (reg_data - reg_data.mean(0)) / reg_data.std(0)
@@ -93,52 +143,3 @@ import ipdb
 
 ipdb.set_trace()
 
-
-# data1 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE1), index_col=0)
-# data2 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE2), index_col=0)
-# data3 = pd.read_csv(pjoin(DATA_DIR, DATA_FILE3), index_col=0)
-# metadata = pd.read_table(pjoin(DATA_DIR, METADATA_FILE))
-
-# gene_idx_sorted_by_variance = np.argsort(-data1.var(0).values)
-# high_variance_genes = data1.columns.values[gene_idx_sorted_by_variance[:N_GENES]]
-# high_variance_genes = np.intersect1d(high_variance_genes, data2.columns.values)
-# high_variance_genes = np.intersect1d(high_variance_genes, data3.columns.values)
-
-# data1_high_variance = data1[high_variance_genes]
-# data2_high_variance = data2[high_variance_genes]
-# data3_high_variance = data3[high_variance_genes]
-
-# ## Get subject ID and drop duplicate subjects
-# data1_high_variance["SUBJID"] = data1_high_variance.index.str.split("-").str[:2].str.join("-")
-# data2_high_variance["SUBJID"] = data2_high_variance.index.str.split("-").str[:2].str.join("-")
-# data3_high_variance["SUBJID"] = data3_high_variance.index.str.split("-").str[:2].str.join("-")
-
-# data1_high_variance = data1_high_variance.drop_duplicates(subset="SUBJID")
-# data2_high_variance = data2_high_variance.drop_duplicates(subset="SUBJID")
-# data3_high_variance = data3_high_variance.drop_duplicates(subset="SUBJID")
-
-# data1_high_variance = data1_high_variance.set_index("SUBJID")
-# data2_high_variance = data2_high_variance.set_index("SUBJID")
-# data3_high_variance = data3_high_variance.set_index("SUBJID")
-
-# metadata_IT = metadata[["SUBJID", "TRISCHD"]]
-# metadata_IT = metadata_IT.set_index("SUBJID")
-
-# data1_subject_ids = data1_high_variance.index.values
-# metadata_IT_data1 = metadata_IT.transpose()[data1_subject_ids].transpose()
-# data2_subject_ids = data2_high_variance.index.values
-# metadata_IT_data2 = metadata_IT.transpose()[data2_subject_ids].transpose()
-# data3_subject_ids = data3_high_variance.index.values
-# metadata_IT_data3 = metadata_IT.transpose()[data3_subject_ids].transpose()
-
-# data1_high_variance.to_csv("../data/gtex/tibial_artery_expression.csv")
-# data2_high_variance.to_csv("../data/gtex/coronary_artery_expression.csv")
-# data3_high_variance.to_csv("../data/gtex/breast_mammary_expression.csv")
-
-# metadata_IT_data1.to_csv("../data/gtex/tibial_artery_ischemic_time.csv")
-# metadata_IT_data2.to_csv("../data/gtex/coronary_artery_ischemic_time.csv")
-# metadata_IT_data3.to_csv("../data/gtex/breast_mammary_ischemic_time.csv")
-
-# assert np.array_equal(data1_high_variance.index.values, metadata_IT_data1.index.values)
-# assert np.array_equal(data2_high_variance.index.values, metadata_IT_data2.index.values)
-# assert np.array_equal(data3_high_variance.index.values, metadata_IT_data3.index.values)
