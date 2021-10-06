@@ -1,8 +1,13 @@
 *.csv
 *.txt
+*.sh
+
+job.slurm*
+
 meetings/
 data/
 plots/
-**/.DS_Store
 __pycache__/
 cached_models/
+
+**/.DS_Store
