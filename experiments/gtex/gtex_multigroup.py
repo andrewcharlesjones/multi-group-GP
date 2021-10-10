@@ -18,15 +18,14 @@ from tqdm import tqdm
 import sys
 
 sys.path.append("../../models")
-from gaussian_process import (
-    MGGP,
-    GP,
-    HGP,
+sys.path.append("../../kernels")
+from gp import (
+    GP
 )
 from kernels import (
-    hierarchical_multigroup_kernel,
-    rbf_covariance,
-    multigroup_rbf_covariance,
+    hgp_kernel,
+    rbf_kernel,
+    multigroup_rbf_kernel,
 )
 
 import matplotlib
@@ -193,20 +192,22 @@ for ii in range(n_repeats):
     ######### Fit MGGP #########
     ############################
 
-    # mggp = MGGP(kernel=multigroup_rbf_covariance)
+    mggp = MGGP(kernel=multigroup_rbf_covariance)
 
-    hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
-        params,
-        X1,
-        X2,
-        groups1,
-        groups2,
-        group_distances,
-        within_group_kernel=multigroup_rbf_covariance,
-        between_group_kernel=rbf_covariance,
-    )
+    # hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
+    #     params,
+    #     X1,
+    #     X2,
+    #     groups1,
+    #     groups2,
+    #     group_distances,
+    #     within_group_kernel=multigroup_rbf_covariance,
+    #     between_group_kernel=rbf_covariance,
+    # )
 
-    mggp = MGGP(kernel=hier_mg_kernel, num_cov_params=5)
+    # mggp = MGGP(kernel=hier_mg_kernel, num_cov_params=5)
+
+    import ipdb; ipdb.set_trace()
 
     mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
     preds_mean, _ = mggp.predict(X_test, X_groups_test)

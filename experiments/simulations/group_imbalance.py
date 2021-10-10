@@ -53,6 +53,7 @@ group_dist_mat = np.array(
 )
 # group_dist_mat = np.ones((n_groups, n_groups))
 
+
 def generate_mggp_data(n_groups, n_per_group, p=1):
 
     n = np.sum(n_per_group)
@@ -73,16 +74,14 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
         groups_list.append(curr_groups)
     X_groups = np.concatenate(groups_list, axis=0)
 
-
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n, p))
-    
+
     curr_K_XX = kernel(X, X, X_groups, X_groups)
     Y = mvn.rvs(np.zeros(n), curr_K_XX) + np.random.normal(
         scale=np.sqrt(noise_variance_true), size=n
     )
-    
-    return X, Y, X_groups
 
+    return X, Y, X_groups
 
 
 def experiment():
@@ -99,8 +98,19 @@ def experiment():
 
             n_per_group[0] = n0
             # n = np.sum(n_per_group)
-            X, Y, X_groups = generate_mggp_data(n_groups=n_groups, n_per_group=n_per_group)
-            X_train, X_test, Y_train, Y_test, X_groups_train, X_groups_test = train_test_split(X, Y, X_groups, test_size=1-frac_train, random_state=42)
+            X, Y, X_groups = generate_mggp_data(
+                n_groups=n_groups, n_per_group=n_per_group
+            )
+            (
+                X_train,
+                X_test,
+                Y_train,
+                Y_test,
+                X_groups_train,
+                X_groups_test,
+            ) = train_test_split(
+                X, Y, X_groups, test_size=1 - frac_train, random_state=42
+            )
 
             ############################
             ######### Fit MGGP #########
@@ -148,7 +158,6 @@ def experiment():
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)
             errors_union_gp[ii, jj] = curr_error
 
-
             ############################
             ######### Fit HGP ##########
             ############################
@@ -170,7 +179,8 @@ def experiment():
     errors_hgp_df["model"] = ["HGP"] * errors_hgp_df.shape[0]
 
     results_df = pd.concat(
-        [errors_mggp_df, errors_separated_gp_df, errors_union_gp_df, errors_hgp_df], axis=0
+        [errors_mggp_df, errors_separated_gp_df, errors_union_gp_df, errors_hgp_df],
+        axis=0,
     )
 
     return results_df, X, Y, X_groups

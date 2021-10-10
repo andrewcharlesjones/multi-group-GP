@@ -16,12 +16,12 @@ import os
 import sys
 
 sys.path.append("../../models")
-from gaussian_process import (
-	MGGP,
+sys.path.append("../../kernels")
+from gp import (
+    GP,
 )
 from kernels import (
-	hierarchical_multigroup_kernel,
-	multigroup_rbf_covariance,
+    multigroup_rbf_kernel,
 )
 
 import matplotlib
@@ -37,13 +37,18 @@ all_fnames = os.listdir(DATA_DIR)
 data_fnames = np.sort([x for x in all_fnames if "_expression.csv" in x])
 output_fnames = np.sort([x for x in all_fnames if "_ischemic_time.csv" in x])
 
-data_sizes = [pd.read_csv(pjoin(DATA_DIR, data_fnames[ii])).shape for ii in range(len(data_fnames))]
+data_sizes = [
+    pd.read_csv(pjoin(DATA_DIR, data_fnames[ii])).shape
+    for ii in range(len(data_fnames))
+]
 sample_sizes = [x[0] for x in data_sizes]
 feature_sizes = [x[1] for x in data_sizes]
 
 # print(data_fnames[np.where(np.array(feature_sizes) == 100)[0]])
 assert np.all(np.array(feature_sizes) == 101)
-import ipdb; ipdb.set_trace()
+# import ipdb
+
+# ipdb.set_trace()
 
 
 # n_tissues = 15
@@ -52,13 +57,10 @@ import ipdb; ipdb.set_trace()
 # output_fnames = output_fnames[rand_idx]
 
 
-
-
 tissue_labels = [" ".join(x.split("_")[:-1]) for x in data_fnames]
 tissue_labels_it = [" ".join(x.split("_")[:-2]) for x in output_fnames]
 
 assert np.array_equal(tissue_labels, tissue_labels_it)
-
 
 
 # tissue_labels = [
@@ -88,8 +90,8 @@ output_col = "TRISCHD"
 
 
 n_repeats = 3
-n_genes = 10
-n_samples = 100
+n_genes = 50
+n_samples = None
 
 n_groups = len(tissue_labels)
 n_groups_per_test = 2
@@ -102,134 +104,138 @@ pbar = tqdm(total=total_num_runs)
 
 for ii in range(n_repeats):
 
-	for jj in range(n_groups):
+    for jj in range(n_groups):
 
-		## First group
-		X_list = []
-		Y_list = []
-		groups_list = []
-		groups_ints = []
+        ## First group
+        X_list = []
+        Y_list = []
+        groups_list = []
+        groups_ints = []
 
-		data1 = pd.read_csv(pjoin(DATA_DIR, data_fnames[jj]), index_col=0)
-		if data1.shape[1] != 100:
-			# pbar.update(1)
-			# continue
-			raise Exception("Wrong number of features")
+        data1 = pd.read_csv(pjoin(DATA_DIR, data_fnames[jj]), index_col=0)
+        if data1.shape[1] != 100:
+            # pbar.update(1)
+            # continue
+            raise Exception("Wrong number of features")
 
-		output = pd.read_csv(pjoin(DATA_DIR, output_fnames[jj]), index_col=0)[
-			output_col
-		]
-		
-		assert np.array_equal(data1.index.values, output.index.values)
+        output = pd.read_csv(pjoin(DATA_DIR, output_fnames[jj]), index_col=0)[
+            output_col
+        ]
 
-		curr_X, curr_Y = data1.values, output.values
+        assert np.array_equal(data1.index.values, output.index.values)
 
-		if n_samples is None:
-			rand_idx = np.arange(curr_X.shape[0])
-		else:
-			rand_idx = np.random.choice(
-				np.arange(curr_X.shape[0]),
-				replace=False,
-				size=min(n_samples, curr_X.shape[0]),
-			)
+        curr_X, curr_Y = data1.values, output.values
 
-		curr_X_group0 = curr_X[rand_idx]
-		curr_Y_group0 = curr_Y[rand_idx]
+        if n_samples is None:
+            rand_idx = np.arange(curr_X.shape[0])
+        else:
+            rand_idx = np.random.choice(
+                np.arange(curr_X.shape[0]),
+                replace=False,
+                size=min(n_samples, curr_X.shape[0]),
+            )
 
-		curr_n = curr_X_group0.shape[0]
+        curr_X_group0 = curr_X[rand_idx]
+        curr_Y_group0 = curr_Y[rand_idx]
 
-		curr_group_one_hot = np.zeros(n_groups_per_test)
-		curr_group_one_hot[0] = 1
-		curr_groups_group0 = np.repeat([curr_group_one_hot], curr_n, axis=0)
+        curr_n = curr_X_group0.shape[0]
 
-		# X_list.append(curr_X)
-		# Y_list.append(curr_Y)
-		# groups_list.append(curr_groups)
+        curr_group_one_hot = np.zeros(n_groups_per_test)
+        curr_group_one_hot[0] = 1
+        curr_groups_group0 = np.repeat([curr_group_one_hot], curr_n, axis=0)
 
-		group0_group_ints = np.repeat(0, curr_X_group0.shape[0])
-		# groups_ints.append()
+        # X_list.append(curr_X)
+        # Y_list.append(curr_Y)
+        # groups_list.append(curr_groups)
 
-		for kk in range(jj):
+        group0_group_ints = np.repeat(0, curr_X_group0.shape[0])
+        # groups_ints.append()
 
-			pbar.update(1)
+        for kk in range(jj):
 
-			groups_ints = [group0_group_ints]
-			X_list = [curr_X_group0]
-			Y_list = [curr_Y_group0]
-			groups_list = [curr_groups_group0]
+            pbar.update(1)
 
-			data2 = pd.read_csv(pjoin(DATA_DIR, data_fnames[kk]), index_col=0)
-			assert np.array_equal(data1.columns.values, data2.columns.values)
+            groups_ints = [group0_group_ints]
+            X_list = [curr_X_group0]
+            Y_list = [curr_Y_group0]
+            groups_list = [curr_groups_group0]
 
-			if data2.shape[1] != 100:
-				raise Exception("Wrong number of features")
+            data2 = pd.read_csv(pjoin(DATA_DIR, data_fnames[kk]), index_col=0)
+            assert np.array_equal(data1.columns.values, data2.columns.values)
 
-			output = pd.read_csv(pjoin(DATA_DIR, output_fnames[kk]), index_col=0)[
-				output_col
-			]
-			assert np.array_equal(data2.index.values, output.index.values)
+            if data2.shape[1] != 100:
+                raise Exception("Wrong number of features")
 
-			curr_X, curr_Y = data2.values, output.values
+            output = pd.read_csv(pjoin(DATA_DIR, output_fnames[kk]), index_col=0)[
+                output_col
+            ]
+            assert np.array_equal(data2.index.values, output.index.values)
 
-			if n_samples is None:
-				rand_idx = np.arange(curr_X.shape[0])
-			else:
-				rand_idx = np.random.choice(
-					np.arange(curr_X.shape[0]),
-					replace=False,
-					size=min(n_samples, curr_X.shape[0]),
-				)
+            curr_X, curr_Y = data2.values, output.values
 
-			curr_X = curr_X[rand_idx]
-			curr_Y = curr_Y[rand_idx]
+            if n_samples is None:
+                rand_idx = np.arange(curr_X.shape[0])
+            else:
+                rand_idx = np.random.choice(
+                    np.arange(curr_X.shape[0]),
+                    replace=False,
+                    size=min(n_samples, curr_X.shape[0]),
+                )
 
-			curr_n = curr_X.shape[0]
+            curr_X = curr_X[rand_idx]
+            curr_Y = curr_Y[rand_idx]
 
-			curr_group_one_hot = np.zeros(n_groups_per_test)
-			curr_group_one_hot[1] = 1
-			curr_groups = np.repeat([curr_group_one_hot], curr_n, axis=0)
+            curr_n = curr_X.shape[0]
 
-			X_list.append(curr_X)
-			Y_list.append(curr_Y)
-			groups_list.append(curr_groups)
+            curr_group_one_hot = np.zeros(n_groups_per_test)
+            curr_group_one_hot[1] = 1
+            curr_groups = np.repeat([curr_group_one_hot], curr_n, axis=0)
 
-			groups_ints.append(np.repeat(1, curr_X.shape[0]))
+            X_list.append(curr_X)
+            Y_list.append(curr_Y)
+            groups_list.append(curr_groups)
 
-			X_groups = np.concatenate(groups_list, axis=0)
-			groups_ints = np.concatenate(groups_ints)
+            groups_ints.append(np.repeat(1, curr_X.shape[0]))
 
-			X = np.concatenate(X_list, axis=0)
-			Y = np.concatenate(Y_list).squeeze()
-			ntotal = X.shape[0]
+            X_groups = np.concatenate(groups_list, axis=0)
+            groups_ints = np.concatenate(groups_ints)
 
-			X = np.log(X + 1)
-			X = (X - X.mean(0)) / X.std(0)
+            X = np.concatenate(X_list, axis=0)
+            Y = np.concatenate(Y_list).squeeze()
+            ntotal = X.shape[0]
 
-			# Y = np.log(Y + 1)
-			Y = (Y - Y.mean(0)) / Y.std(0)
+            X = np.log(X + 1)
+            X = (X - X.mean(0)) / X.std(0)
 
-			pca = PCA(n_components=n_genes)
-			X = pca.fit_transform(X)
+            # Y = np.log(Y + 1)
+            Y = (Y - Y.mean(0)) / Y.std(0)
 
-			############################
-			######### Fit MGGP #########
-			############################
+            # pca = PCA(n_components=n_genes)
+            # X = pca.fit_transform(X)
+            X = X[:, :n_genes]
 
-			mggp = MGGP(kernel=multigroup_rbf_covariance)
+            ############################
+            ######### Fit MGGP #########
+            ############################
 
-			failed_flag = True
-			while failed_flag:
-				try:
-					mggp.fit(X, Y, X_groups)
-				except:
-					continue
-				failed_flag = False
-			# except:
-			#     print("Failed.")
-			#     continue
-			estimated_a = np.exp(mggp.params[-2]) + 1e-6
-			a_matrix[ii, jj, kk] = estimated_a
-			# print("a: {}".format(estimated_a))
+            mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+            # import ipdb; ipdb.set_trace()
+            mggp.fit(X, Y, groups_ints, verbose=True, print_every=1, tol=1.)
+
+            # failed_flag = True
+            # while failed_flag:
+            #     try:
+            #         mggp.fit(X, Y, groups_ints)
+            #     except:
+            #         continue
+            #     failed_flag = False
+            # except:
+            #     print("Failed.")
+            #     continue
+            estimated_a = np.exp(mggp.params[-2]) + 1e-6
+            a_matrix[ii, jj, kk] = estimated_a
+            
+            # print("a: {}".format(estimated_a))
 
 pbar.close()
 

@@ -67,7 +67,9 @@ def recover_alpha_experiment():
             K_XX = multigroup_rbf_covariance(
                 true_kernel_params, X, X, X_groups, X_groups, true_group_dists
             )
-            noise = np.random.normal(scale=noise_scale_true, size=n_per_group * n_groups)
+            noise = np.random.normal(
+                scale=noise_scale_true, size=n_per_group * n_groups
+            )
             Y = mvn.rvs(np.zeros(n_per_group * n_groups), K_XX) + noise
 
             ############################

@@ -3,12 +3,12 @@ import autograd.numpy as np
 
 def rbf_covariance(kernel_params, x, xp):
     """RBF covariance function
-    
+
     Args:
         kernel_params (list): Kernel parameters in the following order: [output scale, length scales]
         x (np array): input 1
         xp (np array): input 2
-    
+
     Returns:
         np array: covariance matrix
     """
@@ -74,7 +74,9 @@ def multigroup_rbf_covariance(kernel_params, X1, X2, groups1, groups2, group_dis
     return K
 
 
-def multigroup_matern12_covariance(kernel_params, X1, X2, groups1, groups2, group_distances):
+def multigroup_matern12_covariance(
+    kernel_params, X1, X2, groups1, groups2, group_distances
+):
 
     assert len(kernel_params) == 4
     output_scale = np.exp(kernel_params[0])
@@ -115,20 +117,17 @@ def multigroup_matern12_covariance(kernel_params, X1, X2, groups1, groups2, grou
                     diff_group_indicator[:, :, ii] == 1,
                     diff_group_indicator[:, :, jj] == 1,
                 )
-            ).astype(
-                int
-            )
+            ).astype(int)
 
             a_times_d_sq = curr_group_distance * group_diff_param ** 2
 
             diff_group_scaling_term += (
-                a_times_d_sq + 1
-            ) * pairwise_group_indicator_matrix / (
-            a_times_d_sq + separability_param)
+                (a_times_d_sq + 1)
+                * pairwise_group_indicator_matrix
+                / (a_times_d_sq + separability_param)
+            )
 
-            premult_term1 += (
-                a_times_d_sq + 1
-            ) * pairwise_group_indicator_matrix
+            premult_term1 += (a_times_d_sq + 1) * pairwise_group_indicator_matrix
 
             premult_term2 += (
                 a_times_d_sq + separability_param
@@ -136,13 +135,17 @@ def multigroup_matern12_covariance(kernel_params, X1, X2, groups1, groups2, grou
 
     samegroup_mask = (diff_group_scaling_term == 0).astype(int)
     divisor = separability_param * samegroup_mask + np.logical_not(samegroup_mask)
-    diff_group_scaling_term += (samegroup_mask / divisor)
+    diff_group_scaling_term += samegroup_mask / divisor
     premult_term1 += samegroup_mask
     premult_term2 += samegroup_mask * separability_param
 
-    premult_term_full = output_scale * separability_param**(0.5 * p) / (premult_term1**0.5 * premult_term2**(p * 0.5))
+    premult_term_full = (
+        output_scale
+        * separability_param ** (0.5 * p)
+        / (premult_term1 ** 0.5 * premult_term2 ** (p * 0.5))
+    )
 
-    dists *= (diff_group_scaling_term**0.5)
+    dists *= diff_group_scaling_term ** 0.5
 
     K = premult_term_full * np.exp(-dists)
     # import ipdb; ipdb.set_trace()
@@ -159,11 +162,7 @@ def matern12_covariance(kernel_params, x, xp):
     assert x.shape[1] == xp.shape[1]
     p = x.shape[1]
 
-    diffs = (
-        np.expand_dims(x / lengthscales, 1)
-        - np.expand_dims(xp / lengthscales, 0)
-    )
-
+    diffs = np.expand_dims(x / lengthscales, 1) - np.expand_dims(xp / lengthscales, 0)
 
     dists = np.linalg.norm(diffs, axis=2, ord=2)
 
@@ -174,61 +173,15 @@ def matern12_covariance(kernel_params, x, xp):
     return K
 
 
-# def mg_matern12_covariance(kernel_params, x, xp):
-
-#     output_scale = np.exp(kernel_params[0])
-#     group_diff_param = np.exp(kernel_params[1])  # + 0.0001
-#     lengthscales = np.exp(kernel_params[2:])
-#     c = 1.0
-
-#     assert x.shape[1] == xp.shape[1]
-#     p = x.shape[1] - 1
-
-#     x_groups = x[:, -1]
-#     x = x[:, :-1]
-#     xp_groups = xp[:, -1]
-#     xp = xp[:, :-1]
-
-#     diffs = (
-#         np.expand_dims(x / lengthscales, 1)
-#         - np.expand_dims(xp / lengthscales, 0)
-#         + 1e-6
-#     )
-#     # import ipdb ;ipdb.set_trace()
-#     # dists = np.sqrt(np.sum(diffs**2, axis=2))
-#     dists = np.linalg.norm(diffs, axis=2, ord=2)
-
-#     diff_group_indicator = (
-#         np.expand_dims(x_groups, 1) - np.expand_dims(xp_groups, 0)
-#     ) ** 2
-#     diff_group_scaling_term = diff_group_indicator * group_diff_param ** 2
-#     # dists /= diff_group_scaling_term
-
-#     exponential_term = np.exp(
-#         -(diff_group_scaling_term + 1)
-#         / (output_scale * c ** (0.5 * p) + c) ** 0.5
-#         * dists
-#     )
-#     premult_term = (
-#         output_scale
-#         * c ** (0.5 * p)
-#         / (
-#             (diff_group_scaling_term + 1) ** 0.5
-#             * (diff_group_scaling_term + c) ** (0.5 * c)
-#         )
-#     )
-
-#     # K = output_scale * c**(0.5 * p) * (1 + np.sqrt(3) * dists) * np.exp(-np.sqrt(3) * dists)
-#     # K /= ((diff_group_scaling_term)**(0.5 * p))
-
-#     K = premult_term * exponential_term
-#     # import ipdb ;ipdb.set_trace()
-
-#     return K
-
-
 def hierarchical_multigroup_kernel(
-    params, X1, X2, groups1, groups2, group_distances, within_group_kernel, between_group_kernel
+    params,
+    X1,
+    X2,
+    groups1,
+    groups2,
+    group_distances,
+    within_group_kernel,
+    between_group_kernel,
 ):
 
     diff_group_indicator = (
@@ -244,11 +197,19 @@ def hierarchical_multigroup_kernel(
     within_group_params = params[n_params_between:]
 
     K_between = between_group_kernel(between_group_params, X1, X2)
-    K_within = within_group_kernel(within_group_params, X1, X2, groups1=groups1, groups2=groups2, group_distances=group_distances)
+    K_within = within_group_kernel(
+        within_group_params,
+        X1,
+        X2,
+        groups1=groups1,
+        groups2=groups2,
+        group_distances=group_distances,
+    )
 
     K = K_between + K_within
 
     return K
+
 
 def hgp_kernel(
     params, X1, X2, groups1, groups2, within_group_kernel, between_group_kernel

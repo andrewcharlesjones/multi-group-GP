@@ -19,7 +19,7 @@ font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-n_repeats = 20
+n_repeats = 5
 alpha_list = alpha_list = [np.power(10, x * 1.0) for x in np.arange(-5, 3)]
 noise_variance_true = 0.1
 n_groups = 2
@@ -433,6 +433,8 @@ def MGGP_experiment():
         curr_params = [
             0.0,  # mean
             np.log(noise_variance_true),  # noise variance
+            np.log(1.0),  # output variance
+            np.log(1.0),  # length scale
             np.log(1.0),  # output variance
             np.log(1.0),  # length scale
         ]

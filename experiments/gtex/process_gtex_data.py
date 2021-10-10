@@ -19,7 +19,10 @@ datafile_prefix = "gtex_expression_"
 DATA_FILES = [x for x in os.listdir(DATA_DIR) if x.startswith(datafile_prefix)]
 # import ipdb; ipdb.set_trace()
 
-TISSUE_NAMES = [x[len(datafile_prefix):-4].replace(" - ", "_").replace(" ", "_") for x in DATA_FILES]
+TISSUE_NAMES = [
+    x[len(datafile_prefix) : -4].replace(" - ", "_").replace(" ", "_")
+    for x in DATA_FILES
+]
 
 ## Get all shared genes between tissue types
 # all_shared_genes = pd.read_csv(pjoin(DATA_DIR, DATA_FILES[0]), index_col=0, nrows=0).columns
@@ -27,7 +30,6 @@ TISSUE_NAMES = [x[len(datafile_prefix):-4].replace(" - ", "_").replace(" ", "_")
 # for jj in np.arange(1, 3): #len(TISSUE_NAMES)):
 #     curr_genes = pd.read_csv(pjoin(DATA_DIR, DATA_FILES[jj]), index_col=0, nrows=0).columns.tolist()
 #     all_shared_genes = np.intersect1d(curr_genes, all_shared_genes)
-
 
 
 # DATA_FILES = [
@@ -67,8 +69,6 @@ N_GENES = 100
 
 for ii in tqdm(range(len(DATA_FILES))):
 
-    
-
     curr_gene_exp_fname = pjoin(SAVE_DIR, "{}_expression.csv".format(TISSUE_NAMES[ii]))
     # if os.path.isfile(curr_gene_exp_fname) and ii != 0:
     #     continue
@@ -81,11 +81,8 @@ for ii in tqdm(range(len(DATA_FILES))):
     DATA_FILE = DATA_FILES[ii]
     if DATA_FILE == "gtex_expression_Muscle - Skeletal.csv":
         continue
-    
 
     data = pd.read_csv(pjoin(DATA_DIR, DATA_FILE), index_col=0)
-
-    
 
     if ii == 0:
 
@@ -121,8 +118,6 @@ for ii in tqdm(range(len(DATA_FILES))):
         pjoin(SAVE_DIR, "{}_ischemic_time.csv".format(TISSUE_NAMES[ii]))
     )
 
-    
-
     # reg_data = np.log(data_high_variance.values + 1)
     # reg_data = (reg_data - reg_data.mean(0)) / reg_data.std(0)
     # reg = LinearRegression()
@@ -142,4 +137,3 @@ for ii in tqdm(range(len(DATA_FILES))):
 import ipdb
 
 ipdb.set_trace()
-

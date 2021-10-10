@@ -7,6 +7,7 @@ import autograd.numpy.random as npr
 from autograd.numpy.linalg import solve
 import autograd.scipy.stats.multivariate_normal as mvn
 from autograd import value_and_grad
+from autograd.scipy.linalg import solve_triangular, cholesky
 from scipy.optimize import minimize
 
 from scipy.stats import multivariate_normal as mvnpy
@@ -15,10 +16,11 @@ import seaborn as sns
 import pandas as pd
 from sklearn.gaussian_process.kernels import RBF
 
+
 import sys
 
-sys.path.append("../../kernels")
-from kernels import hgp_kernel
+sys.path.append("../kernels")
+# from kernels import hgp_kernel
 
 import matplotlib
 
@@ -37,7 +39,7 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
         noise_scale = np.exp(params[1]) + 0.0001
         return mean, cov_params, noise_scale
 
-    def predict(params, x, y, xstar, **kwargs):
+    def predict(params, x, y, xstar, return_cov=False, **kwargs):
         """Returns the predictive mean and covariance at locations xstar,
         of the latent function value f (without observation noise)."""
         mean, cov_params, noise_scale = unpack_kernel_params(params)
@@ -85,9 +87,19 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
             len(y)
         )
 
-        pred_mean = mean + np.dot(solve(cov_y_y, cov_y_f).T, y - mean)
-        pred_cov = cov_f_f - np.dot(solve(cov_y_y, cov_y_f).T, cov_y_f)
-        return pred_mean, pred_cov
+        chol = cholesky(cov_y_y, lower=True)
+        Kinv_y = solve_triangular(chol.T, solve_triangular(chol, y - mean, lower=True))
+        pred_mean = mean + np.dot(cov_y_f.T, Kinv_y)
+
+        # Kinv_Kyf = solve(cov_y_y, cov_y_f)
+        # pred_mean = mean + np.dot(solve_triangular(chol, cov_y_f, lower=True).T, y - mean)
+        # pred_mean = mean + np.dot(Kinv_Kyf.T, y - mean)
+        # pred_cov = cov_f_f - np.dot(solve(cov_y_y, cov_y_f).T, cov_y_f)
+        if return_cov:
+            pred_cov = cov_f_f - np.dot(Kinv_Kyf.T, cov_y_f)
+            return pred_mean, pred_cov
+        else:
+            return pred_mean
 
     def log_marginal_likelihood(params, x, y, **kwargs):
 
@@ -273,14 +285,20 @@ class MGGP:
             jac=True,
             # method="CG",
             callback=self.callback,
-            bounds=[(None, None), (None, None), (lower_bound, upper_bound), (lower_bound, upper_bound), (lower_bound, upper_bound)],
+            bounds=[
+                (None, None),
+                (None, None),
+                (lower_bound, upper_bound),
+                (lower_bound, upper_bound),
+                (lower_bound, upper_bound),
+            ],
         )
 
         self.params = res.x
 
     def predict(self, X_test, groups_test):
 
-        preds_mean, preds_cov = self.predict_fn(
+        preds = self.predict_fn(
             self.params,
             self.X,
             self.y,
@@ -289,7 +307,7 @@ class MGGP:
             xstar_groups=groups_test,
             group_distances=self.group_distances,
         )
-        return preds_mean, preds_cov
+        return preds
 
 
 if __name__ == "__main__":

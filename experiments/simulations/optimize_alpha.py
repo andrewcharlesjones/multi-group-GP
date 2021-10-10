@@ -1,4 +1,5 @@
 import autograd.numpy as np
+import jax.numpy as jnp
 import autograd.numpy.random as npr
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Sum
@@ -11,9 +12,12 @@ import sys
 from sklearn.gaussian_process.kernels import RBF
 from scipy.optimize import minimize
 from autograd import value_and_grad
+from tqdm import tqdm
 
 sys.path.append("../../models")
-from gaussian_process import GP, HGP, MGGP, multigroup_rbf_covariance, rbf_covariance
+sys.path.append("../../kernels")
+from gp import GP
+from kernels import multigroup_rbf_kernel, rbf_kernel
 
 import matplotlib
 
@@ -22,7 +26,7 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 
-n_repeats = 20
+n_repeats = 10
 p = 1
 noise_scale_true = 0.1
 n0 = 20
@@ -33,10 +37,9 @@ n_params = 3
 
 def separated_gp():
 
-    # fitted_as = np.empty(n_repeats)
     fitted_params = np.empty((n_repeats, n_params))
 
-    for ii in range(n_repeats):
+    for ii in tqdm(range(n_repeats)):
 
         ## Generate data
         X0 = np.random.uniform(low=-10, high=10, size=(n0, p))
@@ -59,17 +62,12 @@ def separated_gp():
         ############################
         ######### Fit MGGP #########
         ############################
-        X0_group_one_hot = np.zeros(n_groups)
-        X0_group_one_hot[0] = 1
-        X0_groups = np.repeat([X0_group_one_hot], n0, axis=0)
-        X1_group_one_hot = np.zeros(n_groups)
-        X1_group_one_hot[1] = 1
-        X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
-        X_groups = np.concatenate([X0_groups, X1_groups], axis=0)
-        mggp = MGGP(kernel=multigroup_rbf_covariance)
+        X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
+        mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
 
         curr_group_dists = np.ones((n_groups, n_groups))
-        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
+        np.fill_diagonal(curr_group_dists, 0)
+        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists, verbose=False)
         assert len(mggp.params) == n_params + 2
         output_scale = np.exp(mggp.params[2])
         curr_a = np.exp(mggp.params[3])
@@ -90,7 +88,7 @@ def union_gp():
 
     fitted_params = np.empty((n_repeats, n_params))
 
-    for ii in range(n_repeats):
+    for ii in tqdm(range(n_repeats)):
 
         ## Generate data
         X = np.random.uniform(low=-10, high=10, size=(n0 + n1, p))
@@ -103,17 +101,12 @@ def union_gp():
         ############################
         ######### Fit MGGP #########
         ############################
-        X0_group_one_hot = np.zeros(n_groups)
-        X0_group_one_hot[0] = 1
-        X0_groups = np.repeat([X0_group_one_hot], n0, axis=0)
-        X1_group_one_hot = np.zeros(n_groups)
-        X1_group_one_hot[1] = 1
-        X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
-        X_groups = np.concatenate([X0_groups, X1_groups], axis=0)
-        mggp = MGGP(kernel=multigroup_rbf_covariance)
+        X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
+        mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
 
         curr_group_dists = np.ones((n_groups, n_groups))
-        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
+        np.fill_diagonal(curr_group_dists, 0)
+        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists, verbose=False)
         assert len(mggp.params) == n_params + 2
         output_scale = np.exp(mggp.params[2])
         curr_a = np.exp(mggp.params[3])

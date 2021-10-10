@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import sys
+
 # from sklearn.gaussian_process.kernels import RBF
 from sklearn.model_selection import train_test_split
 
@@ -53,8 +54,9 @@ group_dist_mat = np.array(
     [
         [0.0, 0.1, 1.0],
         [0.1, 0.0, 1.0],
-        [1.0, 1.0, 0.0],        
-    ])
+        [1.0, 1.0, 0.0],
+    ]
+)
 
 
 def generate_separated_gp_data(n_groups, n_per_group, p=1):
@@ -66,9 +68,7 @@ def generate_separated_gp_data(n_groups, n_per_group, p=1):
     # kernel = RBF()
 
     kernel_params = [np.log(1.0)] * 2
-    kernel = lambda X1, X2: gp_kernel(
-        kernel_params, X1, X2
-    )
+    kernel = lambda X1, X2: gp_kernel(kernel_params, X1, X2)
 
     for gg in range(n_groups):
         curr_X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_per_group, p))
@@ -89,13 +89,12 @@ def generate_separated_gp_data(n_groups, n_per_group, p=1):
 
     return X, Y, X_groups
 
+
 def generate_union_gp_data(n_groups, n_per_group, p=1):
     ## Generate data
     # kernel = RBF()
     kernel_params = [np.log(1.0)] * 2
-    kernel = lambda X1, X2: gp_kernel(
-        kernel_params, X1, X2
-    )
+    kernel = lambda X1, X2: gp_kernel(kernel_params, X1, X2)
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
     curr_K_XX = kernel(X, X)
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX) + np.random.normal(
@@ -111,7 +110,8 @@ def generate_union_gp_data(n_groups, n_per_group, p=1):
     X_groups = np.concatenate(groups_list, axis=0)
 
     return X, Y, X_groups
-    
+
+
 def generate_hgp_data(n_groups, n_per_group, p=1):
     kernel = lambda params, X1, X2, groups1, groups2: hgp_kernel(
         params, X1, X2, groups1, groups2, gp_kernel, gp_kernel
@@ -127,19 +127,17 @@ def generate_hgp_data(n_groups, n_per_group, p=1):
         groups_list.append(curr_groups)
     X_groups = np.concatenate(groups_list, axis=0)
 
-
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
     kernel_params = [np.log(1.0)] * 4
     curr_K_XX = kernel(kernel_params, X, X, X_groups, X_groups)
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX) + np.random.normal(
         scale=np.sqrt(noise_variance_true), size=n_groups * n_per_group
     )
-    
+
     return X, Y, X_groups
 
 
 def generate_mggp_data(n_groups, n_per_group, p=1):
-    
 
     kernel_params = [np.log(1.0)] * n_mgg_kernel_params
     if KERNEL_TYPE == "rbf":
@@ -147,7 +145,7 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
         kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_covariance(
             kernel_params, X1, X2, groups1, groups2, group_dist_mat
         )
-        
+
     elif KERNEL_TYPE == "matern":
         kernel_params[1] = np.log(a_true)
         kernel = lambda X1, X2, groups1, groups2: multigroup_matern12_covariance(
@@ -164,14 +162,13 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
         groups_list.append(curr_groups)
     X_groups = np.concatenate(groups_list, axis=0)
 
-
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
-    
+
     curr_K_XX = kernel(X, X, X_groups, X_groups)
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX) + np.random.normal(
         scale=np.sqrt(noise_variance_true), size=n_groups * n_per_group
     )
-    
+
     return X, Y, X_groups
 
 
@@ -184,19 +181,30 @@ def separated_gp():
 
     for ii in range(n_repeats):
 
+        X, Y, X_groups = generate_separated_gp_data(
+            n_groups=n_groups, n_per_group=n_per_group
+        )
 
-        X, Y, X_groups = generate_separated_gp_data(n_groups=n_groups, n_per_group=n_per_group)
-
-        X_train, X_test, Y_train, Y_test, X_groups_train, X_groups_test = train_test_split(X, Y, X_groups, test_size=1-frac_train, random_state=42)
-
-        
+        (
+            X_train,
+            X_test,
+            Y_train,
+            Y_test,
+            X_groups_train,
+            X_groups_test,
+        ) = train_test_split(X, Y, X_groups, test_size=1 - frac_train, random_state=42)
 
         ############################
         ######### Fit MGGP #########
         ############################
 
         mggp = MGGP(kernel=mggp_kernel, num_cov_params=n_mgg_kernel_params)
-        mggp.fit(X_train, Y_train, X_groups_train, group_distances=np.ones((n_groups, n_groups)))
+        mggp.fit(
+            X_train,
+            Y_train,
+            X_groups_train,
+            group_distances=np.ones((n_groups, n_groups)),
+        )
         preds_mean, _ = mggp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
         errors_mggp[ii] = curr_error
@@ -234,9 +242,7 @@ def separated_gp():
         ############################
         ######### Fit HGP ##########
         ############################
-        hgp = HGP(
-            within_group_kernel=gp_kernel, between_group_kernel=gp_kernel
-        )
+        hgp = HGP(within_group_kernel=gp_kernel, between_group_kernel=gp_kernel)
         hgp.fit(X_train, Y_train, X_groups_train)
         preds_mean, _ = hgp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -252,7 +258,7 @@ def separated_gp():
             }
         )
     )
-    
+
     return results_df
 
 
@@ -265,16 +271,29 @@ def union_gp():
 
     for ii in range(n_repeats):
 
-        X, Y, X_groups = generate_union_gp_data(n_groups=n_groups, n_per_group=n_per_group)
-        X_train, X_test, Y_train, Y_test, X_groups_train, X_groups_test = train_test_split(X, Y, X_groups, test_size=1-frac_train, random_state=42)
+        X, Y, X_groups = generate_union_gp_data(
+            n_groups=n_groups, n_per_group=n_per_group
+        )
+        (
+            X_train,
+            X_test,
+            Y_train,
+            Y_test,
+            X_groups_train,
+            X_groups_test,
+        ) = train_test_split(X, Y, X_groups, test_size=1 - frac_train, random_state=42)
 
-        
         ############################
         ######### Fit MGGP #########
         ############################
 
         mggp = MGGP(kernel=mggp_kernel, num_cov_params=n_mgg_kernel_params)
-        mggp.fit(X_train, Y_train, X_groups_train, group_distances=np.ones((n_groups, n_groups)))
+        mggp.fit(
+            X_train,
+            Y_train,
+            X_groups_train,
+            group_distances=np.ones((n_groups, n_groups)),
+        )
         preds_mean, _ = mggp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
         errors_mggp[ii] = curr_error
@@ -312,9 +331,7 @@ def union_gp():
         ############################
         ######### Fit HGP ##########
         ############################
-        hgp = HGP(
-            within_group_kernel=gp_kernel, between_group_kernel=gp_kernel
-        )
+        hgp = HGP(within_group_kernel=gp_kernel, between_group_kernel=gp_kernel)
         hgp.fit(X_train, Y_train, X_groups_train)
         preds_mean, _ = hgp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -347,7 +364,14 @@ def hgp_experiment():
     for ii in range(n_repeats):
 
         X, Y, X_groups = generate_hgp_data(n_groups=n_groups, n_per_group=n_per_group)
-        X_train, X_test, Y_train, Y_test, X_groups_train, X_groups_test = train_test_split(X, Y, X_groups, test_size=1-frac_train, random_state=42)
+        (
+            X_train,
+            X_test,
+            Y_train,
+            Y_test,
+            X_groups_train,
+            X_groups_test,
+        ) = train_test_split(X, Y, X_groups, test_size=1 - frac_train, random_state=42)
 
         ############################
         ######### Fit MGGP #########
@@ -357,7 +381,12 @@ def hgp_experiment():
         # )
 
         mggp = MGGP(kernel=mggp_kernel, num_cov_params=n_mgg_kernel_params)
-        mggp.fit(X_train, Y_train, X_groups_train, group_distances=np.ones((n_groups, n_groups)))
+        mggp.fit(
+            X_train,
+            Y_train,
+            X_groups_train,
+            group_distances=np.ones((n_groups, n_groups)),
+        )
         preds_mean, _ = mggp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
         errors_mggp[ii] = curr_error
@@ -395,9 +424,7 @@ def hgp_experiment():
         ############################
         ######### Fit HGP ##########
         ############################
-        hgp = HGP(
-            within_group_kernel=gp_kernel, between_group_kernel=gp_kernel
-        )
+        hgp = HGP(within_group_kernel=gp_kernel, between_group_kernel=gp_kernel)
         hgp.fit(X_train, Y_train, X_groups_train)
         preds_mean, _ = hgp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -416,6 +443,7 @@ def hgp_experiment():
 
     return results_df
 
+
 def mggp():
 
     errors_mggp = np.empty(n_repeats)
@@ -426,7 +454,14 @@ def mggp():
     for ii in range(n_repeats):
 
         X, Y, X_groups = generate_mggp_data(n_groups=n_groups, n_per_group=n_per_group)
-        X_train, X_test, Y_train, Y_test, X_groups_train, X_groups_test = train_test_split(X, Y, X_groups, test_size=1-frac_train, random_state=42)
+        (
+            X_train,
+            X_test,
+            Y_train,
+            Y_test,
+            X_groups_train,
+            X_groups_test,
+        ) = train_test_split(X, Y, X_groups, test_size=1 - frac_train, random_state=42)
 
         # plt.scatter(X_train, Y_train, c=np.where(X_groups_train)[1])
         # plt.show()
@@ -441,10 +476,6 @@ def mggp():
         preds_mean, _ = mggp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
         errors_mggp[ii] = curr_error
-
-
-        
-
 
         ############################
         ##### Fit separated GP #####
@@ -479,9 +510,7 @@ def mggp():
         ############################
         ######### Fit HGP ##########
         ############################
-        hgp = HGP(
-            within_group_kernel=gp_kernel, between_group_kernel=gp_kernel
-        )
+        hgp = HGP(within_group_kernel=gp_kernel, between_group_kernel=gp_kernel)
         hgp.fit(X_train, Y_train, X_groups_train)
         preds_mean, _ = hgp.predict(X_test, X_groups_test)
         curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -516,7 +545,9 @@ if __name__ == "__main__":
         r"MGGP, $a=" + str(round(a_true, 1)) + "$"
     ] * mggp_results.shape[0]
 
-    all_results = pd.concat([sep_gp_results, union_gp_results, hgp_results, mggp_results], axis=0)
+    all_results = pd.concat(
+        [sep_gp_results, union_gp_results, hgp_results, mggp_results], axis=0
+    )
     cols = all_results.columns.values
     cols[cols == "variable"] = "Fitted model"
     all_results.columns = cols
@@ -526,7 +557,7 @@ if __name__ == "__main__":
     plt.xlabel("Model from which data is generated")
     plt.ylabel("Prediction MSE")
     plt.yscale("log")
-    plt.legend(fontsize=15, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    plt.legend(fontsize=15, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     plt.tight_layout()
 
     if KERNEL_TYPE == "rbf":
