@@ -2,17 +2,20 @@
 
 The multi-group Gaussian process (MGGP) is a generalization of a traditional GP to the setting in which observations are partitioned into a set of known subgroups.
 
-The repo contents are as follows:
-- `multi-group-GP/models/` contains classes for GP models,
-- `multi-group-GP/kernels/` contains classes for covariance functions,
-- `multi-group-GP/experiments/` contains scripts for running simulation experiments and experiments with GTEx data.
-
 ## Installation
 
 The MGGP software can be installed with `pip`:
 
-`pip install multi-group-GP`
+`pip install multigroupGP`
 
-## Functionality
+## Usage
+
+Given an `n x p` matrix `X` of explanatory variables and an `n`-vector `y` containing responses, a GP can be fit as follows:
+
+```python
+from multigroupGP import GP
+gp = GP()
+gp.fit(X, y)
+```
 
 ## Example

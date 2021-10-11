@@ -1,6 +1,6 @@
 # import numpy as np
-import autograd.numpy as np
-import autograd.numpy.random as npr
+import numpy as np
+import numpy.random as npr
 from sklearn.gaussian_process import GaussianProcessRegressor
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -90,7 +90,7 @@ assert np.array_equal(tissue_labels, tissue_labels_it)
 output_col = "TRISCHD"
 
 
-n_repeats = 3
+n_repeats = 1
 n_genes = 50
 n_samples = None
 
@@ -229,7 +229,7 @@ pbar.close()
 
 a_matrix_mean = np.mean(a_matrix, axis=0)
 # mask = np.triu(a_matrix_mean)
-mask = np.zeros_like(a_matrix_mean, dtype=np.bool)
+mask = np.zeros_like(a_matrix_mean, dtype=bool)
 mask[np.triu_indices_from(mask)] = True
 
 
