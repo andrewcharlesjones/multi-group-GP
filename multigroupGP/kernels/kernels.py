@@ -48,7 +48,10 @@ def rbf_kernel_vectorized(x1, x2):
 
 
 def rbf_kernel(kernel_params, x1, x2=None):
-    assert len(kernel_params) == 2
+    try:
+        assert len(kernel_params.primal) == 2
+    except:
+        assert len(kernel_params) == 2
     output_scale = jnp.exp(kernel_params[0])
     lengthscale = jnp.exp(kernel_params[1])
     x1 = x1 / lengthscale

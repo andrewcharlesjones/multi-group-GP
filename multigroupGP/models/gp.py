@@ -248,7 +248,7 @@ class GP:
         self.set_up_objective(X, y, groups=groups, group_distances=group_distances)
         self.maximize_LL(tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps)
 
-    def predict(self, X_test, groups_test, return_cov=False):
+    def predict(self, X_test, groups_test=None, return_cov=False):
 
         preds = self.predict_fn(
             self.params,
@@ -285,25 +285,25 @@ if __name__ == "__main__":
 
     X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
 
-    # K_XX = (
-    #     multigroup_rbf_kernel(
-    #         true_params,
-    #         x1=X,
-    #         groups1=X_groups,
-    #         group_distances=group_dist_mat,
-    #     )
-    #     + noise_variance * jnp.eye(n)
-    # )
     K_XX = (
-        hgp_kernel(
-            jnp.concatenate(jnp.array([true_params, true_params])),
+        multigroup_rbf_kernel(
+            true_params,
             x1=X,
             groups1=X_groups,
-            within_group_kernel=rbf_kernel,
-            between_group_kernel=rbf_kernel,
+            group_distances=group_dist_mat,
         )
         + noise_variance * jnp.eye(n)
     )
+    # K_XX = (
+    #     hgp_kernel(
+    #         jnp.concatenate(jnp.array([true_params, true_params])),
+    #         x1=X,
+    #         groups1=X_groups,
+    #         within_group_kernel=rbf_kernel,
+    #         between_group_kernel=rbf_kernel,
+    #     )
+    #     + noise_variance * jnp.eye(n)
+    # )
     Y = random.multivariate_normal(key, jnp.zeros(n), K_XX)
 
     xtest = jnp.linspace(-5, 5, 200)[:, None]
