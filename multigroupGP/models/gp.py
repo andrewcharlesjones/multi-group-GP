@@ -18,8 +18,8 @@ import seaborn as sns
 import warnings
 import sys
 
-sys.path.append("../kernels")
-from kernels import multigroup_rbf_kernel, rbf_kernel, hgp_kernel
+# sys.path.append("../kernels")
+# from kernels import multigroup_rbf_kernel, rbf_kernel, hgp_kernel
 
 
 def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):

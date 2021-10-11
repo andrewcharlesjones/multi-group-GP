@@ -15,14 +15,15 @@ import scipy.cluster.hierarchy as hc
 import os
 import sys
 
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gp import (
-    GP,
-)
-from kernels import (
-    multigroup_rbf_kernel,
-)
+# sys.path.append("../../models")
+# sys.path.append("../../kernels")
+# from gp import (
+#     GP,
+# )
+# from kernels import (
+#     multigroup_rbf_kernel,
+# )
+from multigroupGP import GP, multigroup_rbf_kernel
 
 import matplotlib
 
@@ -219,24 +220,11 @@ for ii in range(n_repeats):
             ############################
 
             mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
-            # import ipdb; ipdb.set_trace()
-            mggp.fit(X, Y, groups_ints, verbose=True, print_every=1, tol=1.)
+            mggp.fit(X, Y, groups_ints, verbose=False, print_every=1, tol=1.)
 
-            # failed_flag = True
-            # while failed_flag:
-            #     try:
-            #         mggp.fit(X, Y, groups_ints)
-            #     except:
-            #         continue
-            #     failed_flag = False
-            # except:
-            #     print("Failed.")
-            #     continue
             estimated_a = np.exp(mggp.params[-2]) + 1e-6
             a_matrix[ii, jj, kk] = estimated_a
             
-            # print("a: {}".format(estimated_a))
-
 pbar.close()
 
 a_matrix_mean = np.mean(a_matrix, axis=0)

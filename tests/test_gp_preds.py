@@ -7,10 +7,7 @@ import sys
 from jax import grad as jax_grad
 from sklearn.gaussian_process.kernels import RBF
 from jax import jit
-
-sys.path.append("..")
-from kernels.kernels import rbf_covariance as rbf_kernel_vanilla
-from models.jax_mggp import GP as JAXGP, rbf_kernel as rbf_kernel_jax
+from multigroupGP import GP, rbf_kernel
 
 
 def test_jax_predictions():
@@ -18,7 +15,7 @@ def test_jax_predictions():
 
     true_params_jax = jnp.zeros(4)
 
-    gp_jax = JAXGP(kernel=rbf_kernel_jax, key=key)
+    gp = GP(kernel=rbf_kernel, key=key)
     noise_variance = 1e-6
 
     n = 50
@@ -33,6 +30,6 @@ def test_jax_predictions():
         Y = random.multivariate_normal(key, jnp.zeros(n), K_XX)
 
         ## JAX GP
-        gp_jax.fit(X, Y)
-        preds = gp_jax.predict(X, return_cov=False)
+        gp.fit(X, Y)
+        preds = gp.predict(X, return_cov=False)
         assert np.allclose(preds, Y, atol=1e-2)

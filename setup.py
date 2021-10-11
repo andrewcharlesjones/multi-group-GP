@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="multi-group-GP",
+    name="multigroupGP",
     version="0.1",
     description="Multi-group Gaussian processes",
     url="https://github.com/andrewcharlesjones/multi-group-GP",
