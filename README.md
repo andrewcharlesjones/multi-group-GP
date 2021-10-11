@@ -2,6 +2,8 @@
 
 The multi-group Gaussian process (MGGP) is a generalization of a traditional GP to the setting in which observations are partitioned into a set of known subgroups.
 
+The multigroupGP package is written using [JAX](https://github.com/google/jax), a computing framework designed for autodifferentiation, just-in-time (JIT) compilation, and fast parallel computation.
+
 ## Installation
 
 The MGGP software can be installed with `pip`:
@@ -9,6 +11,10 @@ The MGGP software can be installed with `pip`:
 `pip install multigroupGP`
 
 ## Usage
+
+The multigroupGP package supports both standard GPs and multi-group GP. Crucially, the primary difference between multi- and single-group GPs is the choice of covariance function. We first show typical usage for standard GPs (since this is likely more familiar to users), and then show how to use the package in the multi-group setting.
+
+### Standard GP
 
 Given an `n x p` matrix `X` of explanatory variables and an `n`-vector `y` containing responses, a GP can be fit as follows:
 
@@ -25,3 +31,4 @@ gp.predict(Xtest)
 ```
 
 ## Example
+
