@@ -6,12 +6,14 @@ import numpy as onp
 
 key = random.PRNGKey(1)
 
+## True covariance parameters
 true_params = [
     jnp.zeros(1),  # Amplitude
     jnp.zeros(1),  # Group difference parameter (a)
     jnp.zeros(1),  # Lengthscale
 ]
 
+## Generate data
 noise_variance = 0.05
 n0, n1 = 100, 100
 p = 1
@@ -36,16 +38,18 @@ K_XX = (
 )
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
+## Set up GP
+mggp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
+mggp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat)
 
-gp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
-gp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat)
-
+## Predict
 ntest = 200
 Xtest_onegroup = jnp.linspace(-10, 10, ntest)[:, None]
 Xtest = jnp.concatenate([Xtest_onegroup, Xtest_onegroup], axis=0)
 Xtest_groups = onp.concatenate([onp.zeros(ntest), onp.ones(ntest)]).astype(int)
-preds_mean = gp.predict(Xtest, groups_test=Xtest_groups)
+preds_mean = mggp.predict(Xtest, groups_test=Xtest_groups)
 
+## Plot
 plt.figure(figsize=(10, 5))
 plt.scatter(X[:n0], Y[:n0], color="black", label="Data, group 1")
 plt.scatter(X[n0:], Y[n0:], color="gray", label="Data, group 2")
