@@ -119,6 +119,6 @@ plt.show()
 ```
 
 <p align="center">
-  <img src="./examples/images/gp_preds.png" width="500">
+  <img src="./examples/images/mggp_preds.png" width="800">
 </p>
 
