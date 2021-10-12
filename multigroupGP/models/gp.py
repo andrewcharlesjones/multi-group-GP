@@ -18,9 +18,30 @@ import seaborn as sns
 import warnings
 import sys
 
+# from multigroupGP import hgp_kernel
 # sys.path.append("../kernels")
 # from kernels import multigroup_rbf_kernel, rbf_kernel, hgp_kernel
 
+def hgp_kernel(
+    kernel_params, x1, groups1, within_group_kernel, between_group_kernel, x2=None, groups2=None
+):
+    
+    if x2 is None:
+        x2 = x1
+        groups2 = groups1
+
+    same_group_mask = (onp.expand_dims(groups1, 1) == onp.expand_dims(groups2, 0)).astype(int)
+
+    n_params_total = len(kernel_params)
+    within_group_params = kernel_params[n_params_total // 2 :]
+    between_group_params = kernel_params[: n_params_total // 2]
+
+    K_within = within_group_kernel(within_group_params, x1, x2)
+    K_between = between_group_kernel(between_group_params, x1, x2)
+
+    K = K_between + same_group_mask * K_within
+
+    return K
 
 def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
     def unpack_kernel_params(params):

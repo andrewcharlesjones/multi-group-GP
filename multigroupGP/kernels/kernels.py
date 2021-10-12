@@ -16,7 +16,7 @@ from sklearn.gaussian_process.kernels import RBF
 import numpy as onp
 import seaborn as sns
 import warnings
-
+from sklearn.metrics import pairwise_distances
 
 
 def softplus(x):
@@ -77,6 +77,16 @@ def multigroup_rbf_kernel_vectorized(
     return cov
 
 
+def embed_distance_matrix(distance_matrix):
+    assert distance_matrix.shape[0] == distance_matrix.shape[1]
+    n_groups = distance_matrix.shape[0]
+    D2 = distance_matrix**2
+    C = onp.eye(n_groups) - 1 / n_groups * onp.ones((n_groups, n_groups))
+    B = -0.5 * C @ D2 @ C
+    eigvals, E = onp.linalg.eigh(B)
+    embedding = E @ onp.diag(onp.sqrt(eigvals + 1e-10))
+    return embedding
+
 def multigroup_rbf_kernel(
     kernel_params, x1, groups1, group_distances, x2=None, groups2=None
 ):
@@ -84,6 +94,13 @@ def multigroup_rbf_kernel(
         assert len(kernel_params.primal) == 3
     except:
         assert len(kernel_params) == 3
+
+    if not isinstance(groups1.flat[0], onp.integer):
+        warnings.warn("Casing group labels to integers. Make sure your group labels are ints to avoid undue casting!")
+        groups1 = groups1.astype(int)
+        if groups2 is not None:
+            groups2 = groups2.astype(int)
+
     output_scale = jnp.exp(kernel_params[0])
     group_diff_param = jnp.exp(kernel_params[1])
     lengthscale = jnp.exp(kernel_params[2])
@@ -91,10 +108,7 @@ def multigroup_rbf_kernel(
     assert onp.all(onp.diag(group_distances) == 0)
 
     ## Embed group distance matrix in Euclidean space for convenience.
-    B = group_distances @ group_distances.T + onp.eye(group_distances.shape[0]) * 1e-8
-    eigvals, Q = onp.linalg.eigh(B)
-    Lambda_sqrt = onp.diag(onp.sqrt(eigvals))
-    embedding = Q @ Lambda_sqrt    
+    embedding = embed_distance_matrix(group_distances)
 
     x1 = x1 / (lengthscale)
     group_embeddings1 = jnp.array([embedding[xx] for xx in groups1])
@@ -116,23 +130,4 @@ def multigroup_rbf_kernel(
     return output_scale * cov.squeeze()
 
 
-def hgp_kernel(
-    kernel_params, x1, groups1, within_group_kernel, between_group_kernel, x2=None, groups2=None
-):
-    
-    if x2 is None:
-        x2 = x1
-        groups2 = groups1
 
-    same_group_mask = (onp.expand_dims(groups1, 1) == onp.expand_dims(groups2, 0)).astype(int)
-
-    n_params_total = len(kernel_params)
-    within_group_params = kernel_params[n_params_total // 2 :]
-    between_group_params = kernel_params[: n_params_total // 2]
-
-    K_within = within_group_kernel(within_group_params, x1, x2)
-    K_between = between_group_kernel(between_group_params, x1, x2)
-
-    K = K_between + same_group_mask * K_within
-
-    return K

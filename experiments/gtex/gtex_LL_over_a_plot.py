@@ -10,12 +10,7 @@ from scipy.optimize import minimize
 from sklearn.decomposition import PCA
 
 import sys
-
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gaussian_process import GP, HGP, MGGP
-from kernels import multigroup_rbf_covariance, rbf_covariance
-
+from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
 
 import matplotlib
 
@@ -24,18 +19,18 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 DATA_DIR = "../../data/gtex"
-DATA_FILE1 = "frontal_cortex_expression.csv"
-OUTPUT_FILE1 = "frontal_cortex_ischemic_time.csv"
+DATA_FILE1 = "Brain_Frontal_Cortex_(BA9)_expression.csv"
+OUTPUT_FILE1 = "Brain_Frontal_Cortex_(BA9)_ischemic_time.csv"
 
 group1_tissue = "Anterior\ncingulate cortex"
 
 data_prefixes = [
-    # "anterior_cingulate_cortex",
-    "frontal_cortex",
+    "Brain_Anterior_cingulate_cortex_(BA24)",
+    # "Brain_Frontal_Cortex_(BA9)",
     # "cortex",
-    # "breast_mammary",
+    "Breast_Mammary_Tissue",
     # "tibial_artery",
-    "coronary_artery",
+    # "Artery_Coronary",
     # "uterus",
     # "vagina",
 ]
@@ -57,9 +52,7 @@ tissue_labels = [
 output_col = "TRISCHD"
 
 
-n_repeats = 5
-n_genes = 5
-n_samples = 100
+n_genes = 50
 a_list = [np.power(10, x * 1.0) for x in np.arange(-6, 6)]
 group_dist_mat = np.array([[0, 1], [1, 0]])
 plt.figure(figsize=(14, 7))
@@ -95,7 +88,9 @@ for ii in range(len(data2_files)):
     X = (X - X.mean(0)) / X.std(0)
     Y = (Y - Y.mean(0)) / Y.std(0)
 
-    X = PCA(n_components=n_genes).fit_transform(X)
+    X = X[:, :n_genes]
+
+    # X = PCA(n_components=n_genes).fit_transform(X)
 
     X0 = X[np.where(X_groups == 0)[1].astype(bool)]
     X1 = X[np.where(X_groups == 1)[1].astype(bool)]
@@ -107,8 +102,8 @@ for ii in range(len(data2_files)):
     for curr_a in a_list:
 
         kernel_params = [np.log(1.0), np.log(curr_a), np.log(1.0)]
-        curr_K_XX = multigroup_rbf_covariance(
-            kernel_params, X, X, X_groups, X_groups, group_dist_mat
+        curr_K_XX = multigroup_rbf_kernel(
+            kernel_params=kernel_params, x1=X, x2=X, groups1=X_groups, groups2=X_groups, group_distances=group_dist_mat
         )
         curr_LL = mvn.logpdf(Y, np.zeros(len(X)), curr_K_XX + np.eye(len(X)))
         LL_list.append(curr_LL)
@@ -118,15 +113,15 @@ for ii in range(len(data2_files)):
 
     ## Union GP
     kernel_params = [np.log(1.0), np.log(1.0)]
-    curr_K_XX = rbf_covariance(kernel_params, X, X)
+    curr_K_XX = rbf_kernel(kernel_params, X, X)
     ll_union = mvn.logpdf(Y, np.zeros(len(X)), curr_K_XX + np.eye(len(X)))
     plt.axhline(ll_union, label="Union GP", linestyle="--", color="green")
 
     ## Separate GPs
     ll_sep = 0
-    curr_K_X0X0 = rbf_covariance(kernel_params, X0, X0)
+    curr_K_X0X0 = rbf_kernel(kernel_params, X0, X0)
     ll_sep += mvn.logpdf(Y0, np.zeros(len(X0)), curr_K_X0X0 + np.eye(len(X0)))
-    curr_K_X1X1 = rbf_covariance(kernel_params, X1, X1)
+    curr_K_X1X1 = rbf_kernel(kernel_params, X1, X1)
     ll_sep += mvn.logpdf(Y1, np.zeros(len(X1)), curr_K_X1X1 + np.eye(len(X1)))
     plt.axhline(ll_sep, label="Separate GPs", linestyle="--", color="red")
 

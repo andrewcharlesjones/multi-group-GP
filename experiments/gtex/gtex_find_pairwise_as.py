@@ -90,7 +90,7 @@ assert np.array_equal(tissue_labels, tissue_labels_it)
 output_col = "TRISCHD"
 
 
-n_repeats = 1
+n_repeats = 5
 n_genes = 50
 n_samples = None
 

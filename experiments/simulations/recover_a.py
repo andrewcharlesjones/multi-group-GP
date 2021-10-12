@@ -12,10 +12,11 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from tqdm import tqdm
 
 
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gaussian_process import GP, HGP, MGGP
-from kernels import multigroup_rbf_covariance, rbf_covariance
+# sys.path.append("../../models")
+# sys.path.append("../../kernels")
+# from gaussian_process import GP, HGP, MGGP
+# from kernels import multigroup_rbf_covariance, rbf_covariance
+from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
 
 import matplotlib
 
@@ -29,8 +30,8 @@ p = 1
 noise_scale_true = 1e-3
 output_scale_true = 1.0
 length_scale_true = 1.0
-n0 = 20
-n1 = 20
+n0 = 100
+n1 = 100
 alpha_list = alpha_list = [10 ** (x * 1.0) for x in np.arange(-3, 1)]
 FIX_TRUE_PARAMS = True
 xlims = [-10, 10]
@@ -55,20 +56,20 @@ def recover_alpha_experiment():
             X1_group_one_hot = np.zeros(n_groups)
             X1_group_one_hot[1] = 1
             X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
-            X_groups = np.concatenate([X0_groups, X1_groups], axis=0)
+            X_groups = np.concatenate([X0_groups, X1_groups], axis=0).astype(int)
             X = np.concatenate([X0, X1], axis=0)
 
             true_kernel_params = [
                 np.log(output_scale_true),  # output variance
-                np.log(alpha_true),  # alpha
+                np.log(alpha_true),         # a
                 np.log(length_scale_true),  # length scale
             ]
             true_group_dists = np.ones((2, 2))
-            K_XX = multigroup_rbf_covariance(
-                true_kernel_params, X, X, X_groups, X_groups, true_group_dists
-            )
-            noise = np.random.normal(scale=noise_scale_true, size=n0 + n1)
-            Y = mvn.rvs(np.zeros(n0 + n1), K_XX) + noise
+            np.fill_diagonal(true_group_dists, 0)
+            K_XX = multigroup_rbf_kernel(
+                kernel_params=true_kernel_params, x1=X, groups1=X_groups, group_distances=true_group_dists
+            ) + noise_scale_true**2 * np.eye(n0 + n1)
+            Y = mvn.rvs(np.zeros(n0 + n1), K_XX)
 
             ############################
             ######### Fit MGGP #########
@@ -79,10 +80,11 @@ def recover_alpha_experiment():
             X1_group_one_hot = np.zeros(n_groups)
             X1_group_one_hot[1] = 1
             X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
-            X_groups = np.concatenate([X0_groups, X1_groups], axis=0)
-            mggp = MGGP(kernel=multigroup_rbf_covariance)
+            X_groups = np.concatenate([X0_groups, X1_groups], axis=0).astype(int)
+            mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
 
             curr_group_dists = np.ones((n_groups, n_groups))
+            np.fill_diagonal(curr_group_dists, 0)
             mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
             assert len(mggp.params) == n_params + 2
             output_scale = np.exp(mggp.params[2])
@@ -94,7 +96,6 @@ def recover_alpha_experiment():
     results_df = pd.melt(pd.DataFrame(fitted_as, columns=alpha_list))
     plt.figure(figsize=(5, 5))
     sns.lineplot(data=results_df, x="variable", y="value", err_style="bars")
-    # plt.xscale("log")
     plt.yscale("log")
     plt.xscale("log")
     plt.tight_layout()

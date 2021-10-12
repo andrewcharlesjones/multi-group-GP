@@ -1,2 +1,2 @@
-from multigroupGP.models.gp import GP
-from multigroupGP.kernels.kernels import rbf_kernel, multigroup_rbf_kernel, hgp_kernel
+from multigroupGP.models.gp import GP, hgp_kernel
+from multigroupGP.kernels.kernels import rbf_kernel, multigroup_rbf_kernel, embed_distance_matrix

@@ -17,16 +17,17 @@ from tqdm import tqdm
 
 import sys
 
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gp import (
-    GP
-)
-from kernels import (
-    hgp_kernel,
-    rbf_kernel,
-    multigroup_rbf_kernel,
-)
+# sys.path.append("../../models")
+# sys.path.append("../../kernels")
+# from gp import (
+#     GP
+# )
+# from kernels import (
+#     hgp_kernel,
+#     rbf_kernel,
+#     multigroup_rbf_kernel,
+# )
+from multigroupGP import GP, rbf_kernel, multigroup_rbf_kernel
 
 import matplotlib
 
@@ -47,14 +48,14 @@ tissue_labels = [
     "Vagina",
 ]
 data_prefixes = [
-    "anterior_cingulate_cortex",
-    "frontal_cortex",
-    "cortex",
-    "breast_mammary",
-    "tibial_artery",
-    "coronary_artery",
-    "uterus",
-    "vagina",
+    "Brain_Anterior_cingulate_cortex_(BA24)",
+    "Brain_Frontal_Cortex_(BA9)",
+    "Brain_Cortex",
+    "Breast_Mammary_Tissue",
+    "Artery_Tibial",
+    "Artery_Coronary",
+    "Uterus",
+    "Vagina",
 ]
 data_fnames = [x + "_expression.csv" for x in data_prefixes]
 output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
@@ -64,10 +65,8 @@ output_col = "TRISCHD"
 
 n_repeats = 2
 n_genes = 10
-n_samples = 100
-# n_samples = None
-# n_genes = 2
-# n_samples = 30
+# n_samples = 20
+n_samples = 20
 frac_train = 0.5
 
 n_groups = len(tissue_labels)
@@ -149,18 +148,18 @@ for ii in range(n_repeats):
 
         curr_n = curr_X.shape[0]
 
-        curr_group_one_hot = np.zeros(n_groups)
-        curr_group_one_hot[kk] = 1
-        curr_groups = np.repeat([curr_group_one_hot], curr_n, axis=0)
+        # curr_group_one_hot = np.zeros(n_groups)
+        # curr_group_one_hot[kk] = 1
+        # curr_groups = np.repeat([curr_group_one_hot], curr_n, axis=0)
 
         X_list.append(curr_X)
         Y_list.append(curr_Y)
-        groups_list.append(curr_groups)
+        # groups_list.append(curr_groups)
 
         groups_ints.append(np.repeat(kk, curr_X.shape[0]))
 
-    X_groups = np.concatenate(groups_list, axis=0)
-    groups_ints = np.concatenate(groups_ints)
+    X_groups = np.concatenate(groups_ints)
+    # groups_ints = np.concatenate(groups_ints)
 
     X = np.concatenate(X_list, axis=0)
     Y = np.concatenate(Y_list).squeeze()
@@ -177,7 +176,7 @@ for ii in range(n_repeats):
 
     all_idx = np.arange(ntotal)
     train_idx, test_idx, _, _ = train_test_split(
-        all_idx, all_idx, stratify=groups_ints, test_size=frac_train, random_state=9
+        all_idx, all_idx, stratify=X_groups, test_size=frac_train, random_state=9
     )
 
     X_train = X[train_idx]
@@ -192,7 +191,7 @@ for ii in range(n_repeats):
     ######### Fit MGGP #########
     ############################
 
-    mggp = MGGP(kernel=multigroup_rbf_covariance)
+    mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
 
     # hier_mg_kernel = lambda params, X1, X2, groups1, groups2, group_distances: hierarchical_multigroup_kernel(
     #     params,
@@ -207,17 +206,13 @@ for ii in range(n_repeats):
 
     # mggp = MGGP(kernel=hier_mg_kernel, num_cov_params=5)
 
-    import ipdb; ipdb.set_trace()
-
     mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
-    preds_mean, _ = mggp.predict(X_test, X_groups_test)
+    preds_mean = mggp.predict(X_test, X_groups_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
     errors_mggp[ii] = curr_error
-    # print("MGGP: {}".format(curr_error))
-    # import ipdb; ipdb.set_trace()
 
     for groupnum in range(n_groups):
-        curr_idx = X_groups_test[:, groupnum] == 1
+        curr_idx = X_groups_test == groupnum
         curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
         errors_groupwise_mggp[ii, groupnum] = curr_error
 
@@ -229,15 +224,15 @@ for ii in range(n_repeats):
 
     sum_error_sep_gp = 0
     for groupnum in range(n_groups):
-        curr_X_train = X_train[X_groups_train[:, groupnum] == 1]
-        curr_Y_train = Y_train[X_groups_train[:, groupnum] == 1]
-        curr_X_test = X_test[X_groups_test[:, groupnum] == 1]
-        curr_Y_test = Y_test[X_groups_test[:, groupnum] == 1]
+        curr_X_train = X_train[X_groups_train == groupnum]
+        curr_Y_train = Y_train[X_groups_train == groupnum]
+        curr_X_test = X_test[X_groups_test == groupnum]
+        curr_Y_test = Y_test[X_groups_test == groupnum]
 
-        sep_gp = GP(kernel=rbf_covariance)
+        sep_gp = GP(kernel=rbf_kernel)
 
         sep_gp.fit(curr_X_train, curr_Y_train)
-        preds_mean, _ = sep_gp.predict(curr_X_test)
+        preds_mean = sep_gp.predict(curr_X_test)
         curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
         sum_error_sep_gp += curr_error_sep_gp
 
@@ -253,15 +248,15 @@ for ii in range(n_repeats):
     ####### Fit union GP #######
     ############################
 
-    union_gp = GP(kernel=rbf_covariance)
+    union_gp = GP(kernel=rbf_kernel)
     union_gp.fit(X_train, Y_train)
-    preds_mean, _ = union_gp.predict(X_test)
+    preds_mean = union_gp.predict(X_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
     errors_union_gp[ii] = curr_error
     # print("Union: {}".format(curr_error))
 
     for groupnum in range(n_groups):
-        curr_idx = X_groups_test[:, groupnum] == 1
+        curr_idx = X_groups_test == groupnum
         curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
         errors_groupwise_union_gp[ii, groupnum] = curr_error
 
@@ -270,14 +265,14 @@ for ii in range(n_repeats):
     ############################
     ######### Fit HGP ##########
     ############################
-    hgp = HGP(within_group_kernel=rbf_covariance, between_group_kernel=rbf_covariance)
+    hgp = GP(within_group_kernel=rbf_kernel, kernel=rbf_kernel, is_hgp=True)
     hgp.fit(X_train, Y_train, X_groups_train)
-    preds_mean, _ = hgp.predict(X_test, X_groups_test)
+    preds_mean = hgp.predict(X_test, X_groups_test)
     curr_error = np.mean((Y_test - preds_mean) ** 2)
     errors_hgp[ii] = curr_error
 
     for groupnum in range(n_groups):
-        curr_idx = X_groups_test[:, groupnum] == 1
+        curr_idx = X_groups_test == groupnum
         curr_error = np.mean((Y_test[curr_idx] - preds_mean[curr_idx]) ** 2)
         errors_groupwise_hgp[ii, groupnum] = curr_error
 

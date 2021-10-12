@@ -14,10 +14,7 @@ from scipy.optimize import minimize
 from autograd import value_and_grad
 from tqdm import tqdm
 
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gp import GP
-from kernels import multigroup_rbf_kernel, rbf_kernel
+from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
 
 import matplotlib
 

@@ -13,11 +13,7 @@ from scipy.optimize import minimize
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-sys.path.append("../../models")
-sys.path.append("../../kernels")
-from gaussian_process import GP, HGP, MGGP
-from kernels import multigroup_rbf_covariance, rbf_covariance
-
+from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
 
 import matplotlib
 
@@ -29,12 +25,8 @@ matplotlib.rcParams["text.usetex"] = True
 n_repeats = 20
 p = 1
 noise_variance_true = 0.1
-# n0 = 30
-# n1 = 50
-# n2 = 50
 n_per_group = np.array([10, 50, 50])
 n_groups = 3
-# n = np.sum(n_per_group)
 frac_train = 0.5
 FIX_TRUE_PARAMS = False
 n0_list = [5, 10, 30, 50]
@@ -51,8 +43,6 @@ group_dist_mat = np.array(
         [g13_dist, g23_dist, 0.0],
     ]
 )
-# group_dist_mat = np.ones((n_groups, n_groups))
-
 
 def generate_mggp_data(n_groups, n_per_group, p=1):
 
@@ -60,26 +50,22 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
 
     kernel_params = [np.log(1.0)] * 3
     kernel_params[1] = np.log(a_true)
-    kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_covariance(
-        kernel_params, X1, X2, groups1, groups2, group_dist_mat
+    kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_kernel(
+        kernel_params=kernel_params, x1=X1, x2=X2, groups1=groups1, groups2=groups2, group_distances=group_dist_mat
     )
 
     ## Generate data
     groups_list = []
     for gg in range(n_groups):
-        curr_groups_one_hot = np.zeros(n_groups)
-        curr_groups_one_hot[gg] = 1
-        curr_groups = np.repeat([curr_groups_one_hot], n_per_group[gg], axis=0)
+        curr_groups = np.ones(n_per_group[gg]) * gg
 
         groups_list.append(curr_groups)
-    X_groups = np.concatenate(groups_list, axis=0)
+    X_groups = np.concatenate(groups_list, axis=0).astype(int)
 
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n, p))
 
-    curr_K_XX = kernel(X, X, X_groups, X_groups)
-    Y = mvn.rvs(np.zeros(n), curr_K_XX) + np.random.normal(
-        scale=np.sqrt(noise_variance_true), size=n
-    )
+    curr_K_XX = kernel(X, X, X_groups, X_groups) + noise_variance_true * np.eye(n)
+    Y = mvn.rvs(np.zeros(n), curr_K_XX)
 
     return X, Y, X_groups
 
@@ -97,7 +83,6 @@ def experiment():
             ## Generate data from MGGP
 
             n_per_group[0] = n0
-            # n = np.sum(n_per_group)
             X, Y, X_groups = generate_mggp_data(
                 n_groups=n_groups, n_per_group=n_per_group
             )
@@ -116,12 +101,11 @@ def experiment():
             ######### Fit MGGP #########
             ############################
 
-            mggp = MGGP(kernel=multigroup_rbf_covariance)
+            mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
             mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
-            preds_mean, _ = mggp.predict(X_test, X_groups_test)
+            preds_mean = mggp.predict(X_test, X_groups_test)
 
-            # curr_error = np.mean((Y_test - preds_mean) ** 2)
-            group0_idx = X_groups_test[:, 0] == 1
+            group0_idx = X_groups_test == 0
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)
             errors_mggp[ii, jj] = curr_error
 
@@ -131,14 +115,14 @@ def experiment():
 
             sum_error_sep_gp = 0
             for groupnum in range(n_groups):
-                curr_X_train = X_train[X_groups_train[:, groupnum] == 1]
-                curr_Y_train = Y_train[X_groups_train[:, groupnum] == 1]
-                curr_X_test = X_test[X_groups_test[:, groupnum] == 1]
-                curr_Y_test = Y_test[X_groups_test[:, groupnum] == 1]
+                curr_X_train = X_train[X_groups_train == groupnum]
+                curr_Y_train = Y_train[X_groups_train == groupnum]
+                curr_X_test = X_test[X_groups_test == groupnum]
+                curr_Y_test = Y_test[X_groups_test == groupnum]
 
-                sep_gp = GP(kernel=rbf_covariance)
+                sep_gp = GP(kernel=rbf_kernel)
                 sep_gp.fit(curr_X_train, curr_Y_train)
-                preds_mean, _ = sep_gp.predict(curr_X_test)
+                preds_mean = sep_gp.predict(curr_X_test)
                 curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
 
                 if groupnum == 0:
@@ -151,9 +135,9 @@ def experiment():
             ####### Fit union GP #######
             ############################
 
-            union_gp = GP(kernel=rbf_covariance)
+            union_gp = GP(kernel=rbf_kernel)
             union_gp.fit(X_train, Y_train)
-            preds_mean, _ = union_gp.predict(X_test)
+            preds_mean = union_gp.predict(X_test)
             # curr_error = np.mean((Y_test - preds_mean) ** 2)
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)
             errors_union_gp[ii, jj] = curr_error
@@ -161,11 +145,11 @@ def experiment():
             ############################
             ######### Fit HGP ##########
             ############################
-            hgp = HGP(
-                within_group_kernel=rbf_covariance, between_group_kernel=rbf_covariance
+            hgp = GP(
+                within_group_kernel=rbf_kernel, kernel=rbf_kernel, is_hgp=True
             )
             hgp.fit(X_train, Y_train, X_groups_train)
-            preds_mean, _ = hgp.predict(X_test, X_groups_test)
+            preds_mean = hgp.predict(X_test, X_groups_test)
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)
             errors_hgp[ii, jj] = curr_error
 

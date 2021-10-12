@@ -50,11 +50,12 @@ def test_jax_speed():
         t1 = time.time()
         autograd_times.append(t1 - t0)
 
-    
-
     # assert np.all(np.array(jax_times) < np.array(autograd_times))
 
-    import ipdb; ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()
+
 
 if __name__ == "__main__":
     test_jax_speed()
