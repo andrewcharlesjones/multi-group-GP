@@ -4,6 +4,12 @@ import matplotlib.pyplot as plt
 from multigroupGP import GP, multigroup_rbf_kernel
 import numpy as onp
 
+import matplotlib
+
+font = {"size": 15}
+matplotlib.rc("font", **font)
+matplotlib.rcParams["text.usetex"] = True
+
 key = random.PRNGKey(1)
 
 ## True covariance parameters
@@ -57,8 +63,9 @@ plt.plot(Xtest[:ntest], preds_mean[:ntest], color="red", label="Predictions, gro
 plt.plot(
     Xtest[ntest:], preds_mean[ntest:], color="orange", label="Predictions, group 2"
 )
-plt.xlabel("X")
-plt.ylabel("y")
+plt.xlabel(r"$X$")
+plt.ylabel(r"$y$")
 plt.legend()
+plt.tight_layout()
 plt.savefig("./images/mggp_preds.png")
 plt.show()

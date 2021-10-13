@@ -1,12 +1,12 @@
 Metadata-Version: 2.1
 Name: multigroupGP
-Version: 0.3
+Version: 0.4
 Summary: Multi-group Gaussian processes
 Home-page: https://github.com/andrewcharlesjones/multi-group-GP
 Author: Andy Jones
 Author-email: ajones788@gmail.com
 License: UNKNOWN
-Download-URL: https://github.com/andrewcharlesjones/multi-group-GP/archive/refs/tags/v03.tar.gz
+Download-URL: https://github.com/andrewcharlesjones/multi-group-GP/archive/refs/tags/v_04.tar.gz
 Platform: UNKNOWN
 License-File: LICENSE.txt
 

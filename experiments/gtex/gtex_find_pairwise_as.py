@@ -1,7 +1,6 @@
 # import numpy as np
 import numpy as np
 import numpy.random as npr
-from sklearn.gaussian_process import GaussianProcessRegressor
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -14,15 +13,6 @@ import scipy.spatial as sp
 import scipy.cluster.hierarchy as hc
 import os
 import sys
-
-# sys.path.append("../../models")
-# sys.path.append("../../kernels")
-# from gp import (
-#     GP,
-# )
-# from kernels import (
-#     multigroup_rbf_kernel,
-# )
 from multigroupGP import GP, multigroup_rbf_kernel
 
 import matplotlib
