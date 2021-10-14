@@ -28,6 +28,16 @@ all_fnames = os.listdir(DATA_DIR)
 data_fnames = np.sort([x for x in all_fnames if "_expression.csv" in x])
 output_fnames = np.sort([x for x in all_fnames if "_ischemic_time.csv" in x])
 
+desired_subset = [
+    "Brain_Cortex",
+    "Brain_Anterior_cingulate_cortex_(BA24)",
+    "Brain_Frontal_Cortex_(BA9)",
+    "Artery_Coronary",
+    "Artery_Tibial",
+]
+data_fnames = np.array([x for x in data_fnames if "_".join(x.split("_")[:-1]) in desired_subset])
+output_fnames = np.array([x for x in output_fnames if "_".join(x.split("_")[:-2]) in desired_subset])
+
 data_sizes = [
     pd.read_csv(pjoin(DATA_DIR, data_fnames[ii])).shape
     for ii in range(len(data_fnames))
@@ -37,48 +47,18 @@ feature_sizes = [x[1] for x in data_sizes]
 
 # print(data_fnames[np.where(np.array(feature_sizes) == 100)[0]])
 assert np.all(np.array(feature_sizes) == 101)
-# import ipdb
-
-# ipdb.set_trace()
 
 
-# n_tissues = 15
-# rand_idx = np.random.choice(np.arange(len(data_fnames)), size=n_tissues, replace=False)
-# data_fnames = data_fnames[rand_idx]
-# output_fnames = output_fnames[rand_idx]
-
-
+# import ipdb; ipdb.set_trace()
 tissue_labels = [" ".join(x.split("_")[:-1]) for x in data_fnames]
 tissue_labels_it = [" ".join(x.split("_")[:-2]) for x in output_fnames]
 
 assert np.array_equal(tissue_labels, tissue_labels_it)
 
-
-# tissue_labels = [
-#     "Anterior\ncingulate\ncortex",
-#     "Frontal\ncortex",
-#     "Cortex",
-#     "Uterus",
-#     "Vagina",
-#     "Breast",
-#     "Tibial\nartery",
-#     "Coronary\nartery",
-# ]
-# data_prefixes = [
-#     "anterior_cingulate_cortex",
-#     "frontal_cortex",
-#     "cortex",
-#     "uterus",
-#     "vagina",
-#     "breast_mammary",
-#     "tibial_artery",
-#     "coronary_artery",
-# ]
-# data_fnames = [x + "_expression.csv" for x in data_prefixes]
-# output_fnames = [x + "_ischemic_time.csv" for x in data_prefixes]
+for ii in range(len(tissue_labels)):
+    print(tissue_labels[ii] + " [" + str(sample_sizes[ii]) + "],")
 
 output_col = "TRISCHD"
-
 
 n_repeats = 5
 n_genes = 50
@@ -210,7 +190,7 @@ for ii in range(n_repeats):
             ############################
 
             mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
-            mggp.fit(X, Y, groups_ints, verbose=False, print_every=1, tol=1.)
+            mggp.fit(X, Y, groups_ints, verbose=True, group_specific_noise_terms=True)# , print_every=1, tol=1.)
 
             estimated_a = np.exp(mggp.params[-2]) + 1e-6
             a_matrix[ii, jj, kk] = estimated_a

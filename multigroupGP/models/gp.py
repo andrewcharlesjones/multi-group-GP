@@ -16,11 +16,6 @@ from sklearn.gaussian_process.kernels import RBF
 import numpy as onp
 import seaborn as sns
 import warnings
-import sys
-
-# from multigroupGP import hgp_kernel
-# sys.path.append("../kernels")
-# from kernels import multigroup_rbf_kernel, rbf_kernel, hgp_kernel
 
 def hgp_kernel(
     kernel_params, x1, groups1, within_group_kernel, between_group_kernel, x2=None, groups2=None
@@ -43,15 +38,15 @@ def hgp_kernel(
 
     return K
 
-def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
+def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False, n_noise_terms=1):
     def unpack_kernel_params(params):
         mean = params[0]
-        noise_scale = jnp.exp(params[1]) + 0.0001
-        cov_params = jnp.array(params[2:])
+        noise_scale = jnp.exp(params[1:n_noise_terms + 1]) + 0.0001
+        cov_params = jnp.array(params[n_noise_terms + 1:])
         return mean, cov_params, noise_scale
 
     def predict(params, x, y, xstar, return_cov=False, **kwargs):
-        mean, cov_params, noise_scale = unpack_kernel_params(params)
+        mean, cov_params, noise_scales = unpack_kernel_params(params)
 
         if is_hgp:
             extra_args = {
@@ -95,6 +90,11 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
                 "group_distances": kwargs["group_distances"],
             }
 
+        if len(noise_scales) == 1:
+            noise_scale = noise_scales[0]
+        else:
+            noise_scale = noise_scales[kwargs["x_groups"]]
+
         cov_y_y = cov_func(
             kernel_params=cov_params, x1=x, x2=x, **extra_args
         ) + noise_scale * jnp.eye(len(y))
@@ -112,7 +112,7 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
 
     def log_marginal_likelihood(params, x, y, **kwargs):
 
-        mean, cov_params, noise_scale = unpack_kernel_params(params)
+        mean, cov_params, noise_scales = unpack_kernel_params(params)
         if is_hgp:
             extra_args = {"groups1": kwargs["groups"], "groups2": kwargs["groups"]}
         elif is_mggp:
@@ -124,6 +124,11 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
         else:
             extra_args = {}
 
+        if len(noise_scales) == 1:
+            noise_scale = noise_scales[0]
+        else:
+            noise_scale = noise_scales[kwargs["groups"]]
+
         cov_y_y = cov_func(
             kernel_params=cov_params, x1=x, x2=x, **extra_args
         ) + noise_scale * jnp.eye(len(y))
@@ -131,7 +136,7 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False):
 
         return scipy.stats.multivariate_normal.logpdf(y, prior_mean, cov_y_y)
 
-    return num_cov_params + 2, predict, log_marginal_likelihood, unpack_kernel_params
+    return num_cov_params + 1 + n_noise_terms, predict, log_marginal_likelihood, unpack_kernel_params
 
 
 class GP:
@@ -162,26 +167,28 @@ class GP:
             num_cov_params = 2
         self.num_cov_params = num_cov_params
 
+        
+
+    def callback(self, params):
+        pass
+
+    def set_up_objective(self, X, y, groups=None, group_distances=None, n_noise_terms=1):
+        self.X = X
+        self.y = y
+        self.groups = groups
+        self.group_distances = group_distances
+
         # Build model
         (
             num_params,
             predict,
             log_marginal_likelihood,
             unpack_kernel_params,
-        ) = make_gp_funs(self.kernel, num_cov_params=num_cov_params, is_mggp=is_mggp, is_hgp=is_hgp)
+        ) = make_gp_funs(self.kernel, num_cov_params=self.num_cov_params, is_mggp=self.is_mggp, is_hgp=self.is_hgp, n_noise_terms=n_noise_terms)
 
         self.num_params = num_params
         self.predict_fn = predict
         self.log_marginal_likelihood = log_marginal_likelihood
-
-    def callback(self, params):
-        pass
-
-    def set_up_objective(self, X, y, groups=None, group_distances=None):
-        self.X = X
-        self.y = y
-        self.groups = groups
-        self.group_distances = group_distances
 
         self.objective = lambda params: -self.log_marginal_likelihood(
             params,
@@ -258,6 +265,7 @@ class GP:
         verbose=True,
         print_every=100,
         max_steps=1e5,
+        group_specific_noise_terms=False,
     ):
         if self.is_mggp:
             if group_distances is None:
@@ -266,7 +274,16 @@ class GP:
             if not onp.all(onp.diag(group_distances) == 0):
                 raise ValueError("Distance from a group to itself cannot be nonzero.")
 
-        self.set_up_objective(X, y, groups=groups, group_distances=group_distances)
+            if group_specific_noise_terms:
+                n_groups = len(onp.unique(groups))
+                n_noise_terms = n_groups
+            else:
+                n_noise_terms = 1
+
+        else:
+            n_noise_terms = 1
+
+        self.set_up_objective(X, y, groups=groups, group_distances=group_distances, n_noise_terms=n_noise_terms)
         self.maximize_LL(tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps)
 
     def predict(self, X_test, groups_test=None, return_cov=False):

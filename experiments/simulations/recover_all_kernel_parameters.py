@@ -28,7 +28,7 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 
-n_repeats = 10
+n_repeats = 1
 p = 1
 noise_scale_true = 0.1
 output_scale_true = 1.0

@@ -9,5 +9,7 @@ data/
 plots/
 __pycache__/
 cached_models/
+cached_stan_models/
+experiments/simulations/build/
 
 **/.DS_Store

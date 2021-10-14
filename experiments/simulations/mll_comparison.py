@@ -41,14 +41,16 @@ def separate_GP_experiment():
         X0 = np.random.uniform(low=xlims[0], high=xlims[1], size=(n0, p))
         X1 = np.random.uniform(low=xlims[0], high=xlims[1], size=(n1, p))
         kernel = RBF()
-        K_X0X0 = kernel(X0, X0)
-        K_X1X1 = kernel(X1, X1)
-        Y0 = mvn.rvs(np.zeros(n0), K_X0X0) + np.random.normal(
-            scale=np.sqrt(noise_variance_true), size=n0
-        )
-        Y1 = mvn.rvs(np.zeros(n1), K_X1X1) + np.random.normal(
-            scale=np.sqrt(noise_variance_true), size=n1
-        )
+        K_X0X0 = kernel(X0, X0) + noise_variance_true * np.eye(n0)
+        K_X1X1 = kernel(X1, X1) + noise_variance_true * np.eye(n1)
+        Y0 = mvn.rvs(np.zeros(n0), K_X0X0)
+        #  + np.random.normal(
+        #     scale=np.sqrt(noise_variance_true), size=n0
+        # )
+        Y1 = mvn.rvs(np.zeros(n1), K_X1X1)
+        #  + np.random.normal(
+        #     scale=np.sqrt(noise_variance_true), size=n1
+        # )
 
         ############################
         ######### Fit SGP ##########
