@@ -41,8 +41,12 @@ desired_subset = [
     "Esophagus_Gastroesophageal_Junction",
     # "Esophagus_Muscularis",
 ]
-data_fnames = np.array([x for x in data_fnames if "_".join(x.split("_")[:-1]) in desired_subset])
-output_fnames = np.array([x for x in output_fnames if "_".join(x.split("_")[:-2]) in desired_subset])
+data_fnames = np.array(
+    [x for x in data_fnames if "_".join(x.split("_")[:-1]) in desired_subset]
+)
+output_fnames = np.array(
+    [x for x in output_fnames if "_".join(x.split("_")[:-2]) in desired_subset]
+)
 
 data_sizes = [
     pd.read_csv(pjoin(DATA_DIR, data_fnames[ii])).shape
@@ -196,12 +200,14 @@ for ii in range(n_repeats):
             ############################
 
             mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
-            mggp.fit(X, Y, groups_ints, verbose=True, group_specific_noise_terms=True)# , print_every=1, tol=1.)
+            mggp.fit(
+                X, Y, groups_ints, verbose=True, group_specific_noise_terms=True
+            )  # , print_every=1, tol=1.)
 
             estimated_a = np.exp(mggp.params[-2])
             a_matrix[ii, jj, kk] = estimated_a
-            
-            
+
+
 pbar.close()
 
 a_matrix_mean = np.mean(a_matrix, axis=0)

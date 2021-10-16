@@ -183,16 +183,12 @@ def cov_map_matern12(
     xs2=None,
 ):
     if xs2 is None:
-        return vmap(lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs))(xs)
+        return vmap(
+            lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
+        )(xs)
     else:
         return vmap(
-            lambda x: vmap(
-                lambda y: cov_func(
-                    x,
-                    y,
-                    lengthscale=lengthscale
-                )
-            )(xs)
+            lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
         )(xs2).T
 
 
@@ -207,12 +203,20 @@ def matern12_kernel(kernel_params, x1, x2=None):
         assert len(kernel_params) == 2
     output_scale = jnp.exp(kernel_params[0])
     lengthscale = jnp.exp(kernel_params[1])
-    cov = output_scale * cov_map_matern12(matern12_kernel_vectorized, xs=x1, xs2=x2, lengthscale=lengthscale)
+    cov = output_scale * cov_map_matern12(
+        matern12_kernel_vectorized, xs=x1, xs2=x2, lengthscale=lengthscale
+    )
     return cov.squeeze()
 
 
 def multigroup_matern12_kernel_vectorized(
-    x1, x2, group_embeddings1, group_embeddings2, lengthscale, group_diff_param, dependency_scale
+    x1,
+    x2,
+    group_embeddings1,
+    group_embeddings2,
+    lengthscale,
+    group_diff_param,
+    dependency_scale,
 ):
 
     p = x1.shape[-1]
@@ -224,8 +228,9 @@ def multigroup_matern12_kernel_vectorized(
         * (group_diff_param * group_dists + dependency_scale) ** (0.5 * p)
     )
 
-    exp_term = jnp.exp(-lengthscale * 
-        dists
+    exp_term = jnp.exp(
+        -lengthscale
+        * dists
         * (
             (group_diff_param * group_dists + 1)
             / (group_diff_param * group_dists + dependency_scale)

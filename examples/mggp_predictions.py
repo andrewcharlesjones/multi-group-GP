@@ -48,7 +48,13 @@ Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 ## Set up GP
 # mggp = GP(kernel=multigroup_matern12_kernel, key=key, is_mggp=True, num_cov_params=4)
 mggp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
-mggp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat, group_specific_noise_terms=True)
+mggp.fit(
+    X,
+    Y,
+    groups=X_groups,
+    group_distances=group_dist_mat,
+    group_specific_noise_terms=True,
+)
 
 ## Predict
 ntest = 200
@@ -71,4 +77,6 @@ plt.legend()
 plt.tight_layout()
 plt.savefig("./images/mggp_preds.png")
 plt.show()
-import ipdb; ipdb.set_trace()
+import ipdb
+
+ipdb.set_trace()

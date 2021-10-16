@@ -44,6 +44,7 @@ group_dist_mat = np.array(
     ]
 )
 
+
 def generate_mggp_data(n_groups, n_per_group, p=1):
 
     n = np.sum(n_per_group)
@@ -51,7 +52,12 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
     kernel_params = [np.log(1.0)] * 3
     kernel_params[1] = np.log(a_true)
     kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_kernel(
-        kernel_params=kernel_params, x1=X1, x2=X2, groups1=groups1, groups2=groups2, group_distances=group_dist_mat
+        kernel_params=kernel_params,
+        x1=X1,
+        x2=X2,
+        groups1=groups1,
+        groups2=groups2,
+        group_distances=group_dist_mat,
     )
 
     ## Generate data
@@ -145,9 +151,7 @@ def experiment():
             ############################
             ######### Fit HGP ##########
             ############################
-            hgp = GP(
-                within_group_kernel=rbf_kernel, kernel=rbf_kernel, is_hgp=True
-            )
+            hgp = GP(within_group_kernel=rbf_kernel, kernel=rbf_kernel, is_hgp=True)
             hgp.fit(X_train, Y_train, X_groups_train)
             preds_mean = hgp.predict(X_test, X_groups_test)
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)

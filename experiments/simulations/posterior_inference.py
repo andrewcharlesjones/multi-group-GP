@@ -41,7 +41,9 @@ X1_group_one_hot = np.zeros(n_groups)
 X1_group_one_hot[1] = 1
 X1_groups = np.repeat([X1_group_one_hot], n_infinite // 2, axis=0)
 groups_oh_full = np.concatenate([X0_groups, X1_groups], axis=0)
-groups_full = np.concatenate([np.zeros(n_infinite // 2), np.ones(n_infinite // 2)]).astype(int)
+groups_full = np.concatenate(
+    [np.zeros(n_infinite // 2), np.ones(n_infinite // 2)]
+).astype(int)
 
 X_full = np.expand_dims(np.linspace(-5, 5, n_infinite), 1)
 X_full = X_full[
@@ -79,9 +81,16 @@ Y = np.concatenate([Y_full[group0_idx], Y_full[group1_idx]])
 groups = np.concatenate([groups_full[group0_idx], groups_full[group1_idx]])
 groups_oh = np.concatenate([groups_oh_full[group0_idx], groups_oh_full[group1_idx]])
 
-Xtrain, Xtest, Ytrain, Ytest, groups_train, groups_test, groups_oh_train, groups_oh_test = train_test_split(
-    X, Y, groups, groups_oh, test_size=1 - frac_train, random_state=42
-)
+(
+    Xtrain,
+    Xtest,
+    Ytrain,
+    Ytest,
+    groups_train,
+    groups_test,
+    groups_oh_train,
+    groups_oh_test,
+) = train_test_split(X, Y, groups, groups_oh, test_size=1 - frac_train, random_state=42)
 Xtest = X_full
 Ytest = Y_full
 groups_test = groups_full
@@ -109,17 +118,23 @@ with open(pjoin(MODEL_DIR, "gp.stan"), "r") as file:
 posterior = stan.build(model_code, data=data)
 
 # Start sampling
-fit = posterior.sample(num_chains=N_CHAINS, num_warmup=N_WARMUP_ITER, num_samples=N_MCMC_ITER)
+fit = posterior.sample(
+    num_chains=N_CHAINS, num_warmup=N_WARMUP_ITER, num_samples=N_MCMC_ITER
+)
 
 arviz_summary = az.summary(fit)
 
 plt.figure(figsize=(12, 5))
 
 plt.scatter(
-    Xtrain[groups_train == 0], Ytrain[groups_train == 0], color="blue" #, label="Group 1"
+    Xtrain[groups_train == 0],
+    Ytrain[groups_train == 0],
+    color="blue",  # , label="Group 1"
 )
 plt.scatter(
-    Xtrain[groups_train == 1], Ytrain[groups_train == 1], color="red" #, label="Group 2"
+    Xtrain[groups_train == 1],
+    Ytrain[groups_train == 1],
+    color="red",  # , label="Group 2"
 )
 
 Ytest_samples = fit["y2"]
@@ -145,7 +160,7 @@ for groupnum in [0, 1]:
         c=colors[groupnum],
         alpha=0.5,
         label=r"$F(x; c_" + str(groupnum + 1) + ")$",
-        linestyle="-"
+        linestyle="-",
     )
     plt.fill_between(
         curr_Xtest.squeeze()[sorted_idx],
@@ -193,7 +208,7 @@ samples_df = pd.DataFrame(
         r"$\sigma^2$": fit["outputvariance"].squeeze(),
         r"$\beta_1$": fit["beta"][0, :].squeeze(),
         r"$\beta_2$": fit["beta"][1, :].squeeze(),
-        r"$\tau^2$": fit["sigma"].squeeze()**2,
+        r"$\tau^2$": fit["sigma"].squeeze() ** 2,
     }
 )
 samples_df_melted = pd.melt(samples_df)
@@ -210,13 +225,23 @@ truth_df = pd.DataFrame(
 truth_df_melted = pd.melt(truth_df)
 plt.figure(figsize=(7, 5))
 sns.boxplot(data=samples_df_melted, y="variable", x="value", orient="h", color="gray")
-sns.pointplot(data=truth_df_melted, y="variable", x="value", join=False, orient="h", marker="x", color="red")
+sns.pointplot(
+    data=truth_df_melted,
+    y="variable",
+    x="value",
+    join=False,
+    orient="h",
+    marker="x",
+    color="red",
+)
 plt.ylabel("")
 plt.xlabel("Samples")
 plt.tight_layout()
 plt.savefig("../../plots/mggp_hyperparameter_samples.png")
 plt.show()
-import ipdb; ipdb.set_trace()
+import ipdb
+
+ipdb.set_trace()
 
 # plt.figure(figsize=(14, 14))
 # plt.subplot(231)

@@ -28,6 +28,7 @@ n1 = 100
 p = 1
 xlims = [-10, 10]
 
+
 def MGGP_experiment():
     ## Generate data from independent GP for each group
 
@@ -69,12 +70,10 @@ def MGGP_experiment():
     preds, _ = mggp.predict(X, groups_test=X_groups)
     plt.scatter(X, preds)
     plt.show()
-    import ipdb; ipdb.set_trace()
+    import ipdb
 
+    ipdb.set_trace()
 
 
 if __name__ == "__main__":
     MGGP_experiment()
-
-
-

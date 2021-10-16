@@ -22,7 +22,7 @@ X0 = jnp.linspace(-10, 10, n0)[:, None]
 X1 = jnp.linspace(-10, 10, n1)[:, None]
 X = jnp.concatenate([X0, X1], axis=0)
 
-a_list = [10**(int(x)) for x in range(-2, 2)]
+a_list = [10 ** (int(x)) for x in range(-2, 2)]
 n_a = len(a_list)
 
 plt.figure(figsize=(15, 3 * n_a))
@@ -31,9 +31,9 @@ for ii, curr_a in enumerate(a_list):
 
     ## True covariance parameters
     true_params = [
-        jnp.zeros(1),       # Amplitude
-        jnp.log(curr_a),    # Group difference parameter (a)
-        jnp.zeros(1),       # Lengthscale
+        jnp.zeros(1),  # Amplitude
+        jnp.log(curr_a),  # Group difference parameter (a)
+        jnp.zeros(1),  # Lengthscale
     ]
 
     ## Generate data

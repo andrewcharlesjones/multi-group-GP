@@ -101,7 +101,13 @@ def generate_union_gp_data(n_groups, n_per_group, p=1):
 
 def generate_hgp_data(n_groups, n_per_group, p=1):
     kernel = lambda params, X1, X2, groups1, groups2: hgp_kernel(
-        kernel_params=params, x1=X1, x2=X2, groups1=groups1, groups2=groups2, within_group_kernel=gp_kernel, between_group_kernel=gp_kernel
+        kernel_params=params,
+        x1=X1,
+        x2=X2,
+        groups1=groups1,
+        groups2=groups2,
+        within_group_kernel=gp_kernel,
+        between_group_kernel=gp_kernel,
     )
 
     ## Generate data
@@ -118,7 +124,9 @@ def generate_hgp_data(n_groups, n_per_group, p=1):
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
     kernel_params = [np.log(1.0)] * 4
     # import ipdb; ipdb.set_trace()
-    curr_K_XX = kernel(kernel_params, X, X, X_groups, X_groups) + noise_variance_true * np.eye(n_groups * n_per_group)
+    curr_K_XX = kernel(
+        kernel_params, X, X, X_groups, X_groups
+    ) + noise_variance_true * np.eye(n_groups * n_per_group)
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX)
     # + np.random.normal(
     #     scale=np.sqrt(noise_variance_true), size=n_groups * n_per_group
@@ -133,7 +141,12 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
     if KERNEL_TYPE == "rbf":
         kernel_params[1] = np.log(a_true)
         kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_kernel(
-            kernel_params=kernel_params, x1=X1, x2=X2, groups1=groups1, groups2=groups2, group_distances=group_dist_mat
+            kernel_params=kernel_params,
+            x1=X1,
+            x2=X2,
+            groups1=groups1,
+            groups2=groups2,
+            group_distances=group_dist_mat,
         )
 
     elif KERNEL_TYPE == "matern":
@@ -155,7 +168,9 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
 
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
 
-    curr_K_XX = kernel(X, X, X_groups, X_groups) + noise_variance_true * np.eye(n_groups * n_per_group)
+    curr_K_XX = kernel(X, X, X_groups, X_groups) + noise_variance_true * np.eye(
+        n_groups * n_per_group
+    )
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX)
     # + np.random.normal(
     #     scale=np.sqrt(noise_variance_true), size=n_groups * n_per_group

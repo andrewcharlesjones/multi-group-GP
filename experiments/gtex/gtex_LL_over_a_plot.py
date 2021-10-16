@@ -103,7 +103,12 @@ for ii in range(len(data2_files)):
 
         kernel_params = [np.log(1.0), np.log(curr_a), np.log(1.0)]
         curr_K_XX = multigroup_rbf_kernel(
-            kernel_params=kernel_params, x1=X, x2=X, groups1=X_groups, groups2=X_groups, group_distances=group_dist_mat
+            kernel_params=kernel_params,
+            x1=X,
+            x2=X,
+            groups1=X_groups,
+            groups2=X_groups,
+            group_distances=group_dist_mat,
         )
         curr_LL = mvn.logpdf(Y, np.zeros(len(X)), curr_K_XX + np.eye(len(X)))
         LL_list.append(curr_LL)

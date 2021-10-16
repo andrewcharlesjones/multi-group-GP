@@ -64,14 +64,23 @@ def separated_gp():
 
         curr_group_dists = np.ones((n_groups, n_groups))
         np.fill_diagonal(curr_group_dists, 0)
-        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists, verbose=False, group_specific_noise_terms=True)
+        mggp.fit(
+            X,
+            Y,
+            groups=X_groups,
+            group_distances=curr_group_dists,
+            verbose=False,
+            group_specific_noise_terms=True,
+        )
         # assert len(mggp.params) == n_params + 2
         noise_variances = np.exp(mggp.params[1:3])
         output_scale = np.exp(mggp.params[3])
         curr_a = np.exp(mggp.params[4])
         lengthscale = np.exp(mggp.params[5])
 
-        fitted_params[ii, :] = np.array([output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]])
+        fitted_params[ii, :] = np.array(
+            [output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]]
+        )
 
     fitted_output_scales, fitted_as, fitted_lengthscales, fitted_noise_variances = (
         fitted_params[:, 0],
@@ -105,14 +114,23 @@ def union_gp():
 
         curr_group_dists = np.ones((n_groups, n_groups))
         np.fill_diagonal(curr_group_dists, 0)
-        mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists, verbose=False, group_specific_noise_terms=True)
+        mggp.fit(
+            X,
+            Y,
+            groups=X_groups,
+            group_distances=curr_group_dists,
+            verbose=False,
+            group_specific_noise_terms=True,
+        )
         # assert len(mggp.params) == n_params + 2
         noise_variances = np.exp(mggp.params[1:3])
         output_scale = np.exp(mggp.params[3])
         curr_a = np.exp(mggp.params[4])
         lengthscale = np.exp(mggp.params[5])
 
-        fitted_params[ii, :] = np.array([output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]])
+        fitted_params[ii, :] = np.array(
+            [output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]]
+        )
 
     fitted_output_scales, fitted_as, fitted_lengthscales, fitted_noise_variances = (
         fitted_params[:, 0],
@@ -128,8 +146,18 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(25, 5))
 
-    fitted_output_scales_sep, fitted_as_sep, fitted_lengthscales_sep, fitted_noise_variances_sep = separated_gp()
-    fitted_output_scales_union, fitted_as_union, fitted_lengthscales_union, fitted_noise_variances_union = union_gp()
+    (
+        fitted_output_scales_sep,
+        fitted_as_sep,
+        fitted_lengthscales_sep,
+        fitted_noise_variances_sep,
+    ) = separated_gp()
+    (
+        fitted_output_scales_union,
+        fitted_as_union,
+        fitted_lengthscales_union,
+        fitted_noise_variances_union,
+    ) = union_gp()
 
     plt.subplot(141)
     results_df_output_scales = pd.melt(
@@ -188,14 +216,24 @@ if __name__ == "__main__":
     results_df_noise_scales = pd.melt(
         pd.DataFrame(
             {
-                "Separated GP": np.concatenate([fitted_noise_variances_sep[:, 0], fitted_noise_variances_sep[:, 1]]),
-                "Union GP": np.concatenate([fitted_noise_variances_union[:, 0], fitted_noise_variances_union[:, 1]]),
-                "Group": np.concatenate([np.ones(n_repeats), np.ones(n_repeats) * 2]).astype(int)
+                "Separated GP": np.concatenate(
+                    [fitted_noise_variances_sep[:, 0], fitted_noise_variances_sep[:, 1]]
+                ),
+                "Union GP": np.concatenate(
+                    [
+                        fitted_noise_variances_union[:, 0],
+                        fitted_noise_variances_union[:, 1],
+                    ]
+                ),
+                "Group": np.concatenate(
+                    [np.ones(n_repeats), np.ones(n_repeats) * 2]
+                ).astype(int),
             }
-        ), id_vars="Group"
+        ),
+        id_vars="Group",
     )
     sns.boxplot(data=results_df_noise_scales, x="variable", y="value", hue="Group")
-    plt.axhline(noise_scale_true**2, linestyle="--", color="black")
+    plt.axhline(noise_scale_true ** 2, linestyle="--", color="black")
     plt.xlabel("Data generating model")
     plt.ylabel("Fitted value")
     plt.title(r"$\tau^2$")

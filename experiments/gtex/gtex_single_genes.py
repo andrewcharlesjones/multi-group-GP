@@ -95,7 +95,6 @@ group_dist_mat = (
 np.fill_diagonal(group_dist_mat, 0)
 
 
-
 X_list = []
 Y_list = []
 groups_list = []
