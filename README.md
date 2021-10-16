@@ -68,9 +68,17 @@ After fitting, predictions can be made for a test matrix `Xtest` as follows:
 mggp.predict(Xtest, groups_test=Xtest_groups)
 ```
 
+## Interpretation of the `a` parameter
+
+The multi-group covariance functions here each have a parameter `a` that controls the strength of similarity between groups. Heuristically, lower values of `a` correspond to MGGPs whose function draws are more similar across groups, and higher values of `a` correspond to MGGPs whose function draws are more dissimilar across groups. We visualize this below by sampling a function for each of two groups using the multi-group RBF kernel:
+
+<p align="center">
+  <img src="./examples/images/a_visualization.png" width="800">
+</p>
+
 ## Example
 
-Below is a full regression example with the MGGP.
+Below is a full example for performing multi-group regression with the MGGP. See the `examples/` folder for more.
 
 ```python
 import jax.numpy as jnp
