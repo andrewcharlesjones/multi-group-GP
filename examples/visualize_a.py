@@ -6,7 +6,7 @@ import numpy as onp
 
 import matplotlib
 
-font = {"size": 15}
+font = {"size": 25}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
