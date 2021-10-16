@@ -1,12 +1,9 @@
+from abc import ABC, abstractmethod
+import warnings
 from jax import vmap
 import jax.numpy as jnp
-import jax.random as random
-import jax.scipy as scipy
-from scipy.optimize import minimize
 import numpy as onp
-import warnings
-from abc import ABC, abstractmethod
-from .util import softplus, embed_distance_matrix
+from .util import embed_distance_matrix
 
 
 ##############################
@@ -32,8 +29,7 @@ class Kernel(ABC):
     def cov_map(self, cov_func, xs, xs2=None):
         if xs2 is None:
             return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs)
-        else:
-            return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs2).T
+        return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs2).T
 
     def check_params(self, params):
         try:
@@ -48,6 +44,7 @@ class Kernel(ABC):
         else:
             transf = lambda x: params
         return transf(params)
+
 
 ##############################
 ############ RBF #############
@@ -74,6 +71,7 @@ class RBF(Kernel):
         cov = output_scale * self.cov_map(self.kernel_vectorized, x1, x2)
         return cov
 
+
 ##############################
 ######## Matern 1/2 ##########
 ##############################
@@ -86,15 +84,20 @@ class Matern12(Kernel):
     def kernel_vectorized(self, x1, x2, lengthscale):
         return jnp.exp(-0.5 * jnp.sqrt(jnp.sum((x1 - x2) ** 2)) / lengthscale)
 
-    def cov_map(self, cov_func, xs, lengthscale, xs2=None,):
+    def cov_map(
+        self,
+        cov_func,
+        xs,
+        lengthscale,
+        xs2=None,
+    ):
         if xs2 is None:
             return vmap(
                 lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
             )(xs)
-        else:
-            return vmap(
-                lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
-            )(xs2).T
+        return vmap(
+            lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
+        )(xs2).T
 
     def __call__(self, params, x1, x2=None, log_params=True):
 
@@ -118,7 +121,9 @@ class MultiGroupRBF(Kernel):
     def __init__(self):
         super().__init__()
 
-    def kernel_vectorized(self, x1, x2, group_embeddings1, group_embeddings2, group_diff_param):
+    def kernel_vectorized(
+        self, x1, x2, group_embeddings1, group_embeddings2, group_diff_param
+    ):
         p = x1.shape[-1]
         dists = jnp.sum((x1 - x2) ** 2)
         group_dists = jnp.sum((group_embeddings1 - group_embeddings2) ** 2)
@@ -130,23 +135,45 @@ class MultiGroupRBF(Kernel):
         )
         return cov
 
-    def cov_map(self, cov_func, xs, group_embeddings1, group_diff_param, xs2=None, group_embeddings2=None,):
+    def cov_map(
+        self,
+        cov_func,
+        xs,
+        group_embeddings1,
+        group_diff_param,
+        xs2=None,
+        group_embeddings2=None,
+    ):
         if xs2 is None:
             return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs)
-        else:
-            return vmap(
-                lambda x, g1: vmap(
-                    lambda y, g2: cov_func(x, y, g1, g2, group_diff_param=group_diff_param)
-                )(xs, group_embeddings1)
-            )(xs2, group_embeddings2).T
+        return vmap(
+            lambda x, g1: vmap(
+                lambda y, g2: cov_func(
+                    x, y, g1, g2, group_diff_param=group_diff_param
+                )
+            )(xs, group_embeddings1)
+        )(xs2, group_embeddings2).T
 
-    def __call__(self, params, x1, groups1, group_distances, x2=None, groups2=None, log_params=True):
+    def __call__(
+        self,
+        params,
+        x1,
+        groups1,
+        group_distances=None,
+        x2=None,
+        groups2=None,
+        log_params=True,
+    ):
 
         self.check_params(params)
         params = self.transform_params(params, log_params)
         output_scale = params[0]
         group_diff_param = params[1]
         lengthscale = params[2]
+
+        if group_distances is None:
+            n_groups = len(onp.unique(groups1))
+            group_distances = onp.ones(n_groups) - onp.eye(n_groups)
 
         if not isinstance(groups1.flat[0], onp.integer):
             warnings.warn(
@@ -180,6 +207,7 @@ class MultiGroupRBF(Kernel):
         )
         return output_scale * cov.squeeze()
 
+
 ##############################
 ### Multi-group Matern 1/2 ###
 ##############################
@@ -189,14 +217,16 @@ class MultiGroupMatern12(Kernel):
     def __init__(self):
         super().__init__()
 
-    def kernel_vectorized(self, 
-                            x1,
-                            x2,
-                            group_embeddings1,
-                            group_embeddings2,
-                            lengthscale,
-                            group_diff_param,
-                            dependency_scale,):
+    def kernel_vectorized(
+        self,
+        x1,
+        x2,
+        group_embeddings1,
+        group_embeddings2,
+        lengthscale,
+        group_diff_param,
+        dependency_scale,
+    ):
         p = x1.shape[-1]
         dists = jnp.sqrt(jnp.sum((x1 - x2) ** 2))
         group_dists = jnp.sum((group_embeddings1 - group_embeddings2) ** 2)
@@ -219,40 +249,53 @@ class MultiGroupMatern12(Kernel):
         cov = pre_exp_term * exp_term
         return cov
 
-    def cov_map(self, 
-                cov_func,
-                xs,
-                group_embeddings1,
-                lengthscale,
-                group_diff_param,
-                dependency_scale,
-                xs2=None,
-                group_embeddings2=None,):
+    def cov_map(
+        self,
+        cov_func,
+        xs,
+        group_embeddings1,
+        lengthscale,
+        group_diff_param,
+        dependency_scale,
+        xs2=None,
+        group_embeddings2=None,
+    ):
         if xs2 is None:
             return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs)
-        else:
-            return vmap(
-                lambda x, g1: vmap(
-                    lambda y, g2: cov_func(
-                        x,
-                        y,
-                        g1,
-                        g2,
-                        lengthscale=lengthscale,
-                        group_diff_param=group_diff_param,
-                        dependency_scale=dependency_scale,
-                    )
-                )(xs, group_embeddings1)
-            )(xs2, group_embeddings2).T
+        return vmap(
+            lambda x, g1: vmap(
+                lambda y, g2: cov_func(
+                    x,
+                    y,
+                    g1,
+                    g2,
+                    lengthscale=lengthscale,
+                    group_diff_param=group_diff_param,
+                    dependency_scale=dependency_scale,
+                )
+            )(xs, group_embeddings1)
+        )(xs2, group_embeddings2).T
 
-
-    def __call__(self, params, x1, groups1, group_distances, x2=None, groups2=None, log_params=True):
+    def __call__(
+        self,
+        params,
+        x1,
+        groups1,
+        group_distances=None,
+        x2=None,
+        groups2=None,
+        log_params=True,
+    ):
         self.check_params(params)
         params = self.transform_params(params, log_params)
         output_scale = params[0]
         group_diff_param = params[1]
         lengthscale = params[2]
         dependency_scale = params[3]
+
+        if group_distances is None:
+            n_groups = len(onp.unique(groups1))
+            group_distances = onp.ones(n_groups) - onp.eye(n_groups)
 
         if not isinstance(groups1.flat[0], onp.integer):
             warnings.warn(
@@ -290,12 +333,8 @@ class MultiGroupMatern12(Kernel):
 if __name__ == "__main__":
     # kernel = Matern12()
     kernel = MultiGroupRBF()
-    K = kernel(jnp.array([0., 0.]), onp.random.normal(size=(20, 1)))
+    K = kernel(jnp.array([0.0, 0.0]), onp.random.normal(size=(20, 1)))
     print(K.shape)
-    import ipdb; ipdb.set_trace()
+    import ipdb
 
-
-
-
-
-
+    ipdb.set_trace()

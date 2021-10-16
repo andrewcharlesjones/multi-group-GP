@@ -27,7 +27,6 @@ def hgp_kernel(
     x2=None,
     groups2=None,
 ):
-
     if x2 is None:
         x2 = x1
         groups2 = groups1
@@ -341,66 +340,3 @@ class GP:
         )
         return preds
 
-
-if __name__ == "__main__":
-    key = random.PRNGKey(0)
-
-    true_params = [
-        jnp.zeros(1),
-        jnp.zeros(1),
-        # jnp.zeros(1),
-    ]
-
-    noise_variance = 0.01
-    n0, n1 = 100, 100
-    p = 1
-    n = n0 + n1
-    X0 = onp.linspace(-10, 10, n0)[:, None]
-    X1 = onp.linspace(-10, 10, n1)[:, None]
-    X = onp.concatenate([X0, X1])
-
-    group_dist_mat = onp.ones((2, 2))
-    onp.fill_diagonal(group_dist_mat, 0)
-
-    X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
-
-    K_XX = (
-        multigroup_rbf_kernel(
-            true_params,
-            x1=X,
-            groups1=X_groups,
-            group_distances=group_dist_mat,
-        )
-        + noise_variance * jnp.eye(n)
-    )
-    # K_XX = (
-    #     hgp_kernel(
-    #         jnp.concatenate(jnp.array([true_params, true_params])),
-    #         x1=X,
-    #         groups1=X_groups,
-    #         within_group_kernel=rbf_kernel,
-    #         between_group_kernel=rbf_kernel,
-    #     )
-    #     + noise_variance * jnp.eye(n)
-    # )
-    Y = random.multivariate_normal(key, jnp.zeros(n), K_XX)
-
-    xtest = jnp.linspace(-5, 5, 200)[:, None]
-    # gp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
-    # gp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat)
-    gp = GP(kernel=rbf_kernel, within_group_kernel=rbf_kernel, key=key, is_hgp=True)
-    gp.fit(X, Y, groups=X_groups)
-    gp.print_params()
-    # gp.fit(X, Y)
-    # gp = GP(kernel=rbf_kernel, key=key, is_mggp=False)
-    # print(gp.params)
-    preds_mean = gp.predict(X, groups_test=X_groups)
-
-    plt.scatter(X[:n0], Y[:n0])
-    plt.scatter(X[n0:], Y[n0:])
-    plt.plot(X[:n0], preds_mean[:n0], color="red")
-    plt.plot(X[n0:], preds_mean[n0:], color="orange")
-    plt.show()
-    import ipdb
-
-    ipdb.set_trace()
