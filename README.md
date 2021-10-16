@@ -133,3 +133,11 @@ plt.show()
   <img src="./examples/images/mggp_preds.png" width="800">
 </p>
 
+## Experiments
+
+Code for reproducing the experiments in the paper can be found in the `experiments/` folder.
+
+## Bugs
+
+Please open a GitHub issue to report bugs.
+
