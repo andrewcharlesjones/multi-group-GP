@@ -12,4 +12,4 @@ absl_py==0.10.0
 pcpca==0.1
 gaussian_process==0.0.14
 scikit_learn==1.0
-stan==1.0
+pystan==1.0
