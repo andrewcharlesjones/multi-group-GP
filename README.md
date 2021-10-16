@@ -23,6 +23,14 @@ Currently, there are four covariance implemented in the `multigroupGP` package:
 - `matern12_kernel` (Matérn 1/2 kernel)
 - `multigroup_matern12_kernel` (multi-group extension of the Matérn 1/2 kernel)
 
+### Estimation and inference
+
+The `multigroupGP` package offers both maximum likelihood estimation and full Bayesian inference. 
+
+**Maximum likelihood**: To fit the model and covariance function parameters via MLE, simply call the `fit` function on a GP object. This uses the Adam optimizer by default.
+
+**Full Bayes**: A PyStan implementation of the MGGP with the multi-group RBF kernel is available in `multigroupGP/models/mggp.stan`. Currently, this only supports the two-group setting, but this will be generalized in the future. Please see `experiments/simulations/posterior_inference.py` for an example.
+
 ### Standard GP
 
 Given an `n x p` matrix `X` of explanatory variables and an `n`-vector `y` containing responses, a standard GP can be fit as follows:
