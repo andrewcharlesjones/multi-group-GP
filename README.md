@@ -2,11 +2,11 @@
 
 The multi-group Gaussian process (MGGP) is a generalization of a traditional GP to the setting in which observations are partitioned into a set of known subgroups.
 
-The multigroupGP package is written using [JAX](https://github.com/google/jax), a computing framework designed for autodifferentiation, just-in-time (JIT) compilation, and fast parallel computation.
+The multigroupGP package is primarily written using [JAX](https://github.com/google/jax).
 
 ## Installation
 
-The MGGP software can be installed with `pip`:
+The MGGP Python package can be installed with `pip`:
 
 `pip install multigroupGP`
 
