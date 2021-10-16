@@ -17,15 +17,24 @@ import numpy as onp
 import seaborn as sns
 import warnings
 
+
 def hgp_kernel(
-    kernel_params, x1, groups1, within_group_kernel, between_group_kernel, x2=None, groups2=None
+    kernel_params,
+    x1,
+    groups1,
+    within_group_kernel,
+    between_group_kernel,
+    x2=None,
+    groups2=None,
 ):
-    
+
     if x2 is None:
         x2 = x1
         groups2 = groups1
 
-    same_group_mask = (onp.expand_dims(groups1, 1) == onp.expand_dims(groups2, 0)).astype(int)
+    same_group_mask = (
+        onp.expand_dims(groups1, 1) == onp.expand_dims(groups2, 0)
+    ).astype(int)
 
     n_params_total = len(kernel_params)
     within_group_params = kernel_params[n_params_total // 2 :]
@@ -38,11 +47,14 @@ def hgp_kernel(
 
     return K
 
-def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False, n_noise_terms=1):
+
+def make_gp_funs(
+    cov_func, num_cov_params, is_hgp=False, is_mggp=False, n_noise_terms=1
+):
     def unpack_kernel_params(params):
         mean = params[0]
-        noise_scale = jnp.exp(params[1:n_noise_terms + 1]) + 0.0001
-        cov_params = jnp.array(params[n_noise_terms + 1:])
+        noise_scale = jnp.exp(params[1 : n_noise_terms + 1]) + 0.0001
+        cov_params = jnp.array(params[n_noise_terms + 1 :])
         return mean, cov_params, noise_scale
 
     def predict(params, x, y, xstar, return_cov=False, **kwargs):
@@ -136,12 +148,25 @@ def make_gp_funs(cov_func, num_cov_params, is_hgp=False, is_mggp=False, n_noise_
 
         return scipy.stats.multivariate_normal.logpdf(y, prior_mean, cov_y_y)
 
-    return num_cov_params + 1 + n_noise_terms, predict, log_marginal_likelihood, unpack_kernel_params
+    return (
+        num_cov_params + 1 + n_noise_terms,
+        predict,
+        log_marginal_likelihood,
+        unpack_kernel_params,
+    )
 
 
 class GP:
-    def __init__(self, kernel, is_mggp=False, is_hgp=False, within_group_kernel=None, key=random.PRNGKey(0)):
-        
+    def __init__(
+        self,
+        kernel,
+        is_mggp=False,
+        is_hgp=False,
+        within_group_kernel=None,
+        key=random.PRNGKey(0),
+        num_cov_params=None,
+    ):
+
         self.key = key
         if is_mggp and is_hgp:
             raise ValueError("GP cannot be both an MGGP and HGP.")
@@ -153,26 +178,32 @@ class GP:
             if within_group_kernel is None:
                 raise ValueError("Must specify within-group kernel function for HGP.")
             self.kernel = lambda kernel_params, x1, x2, groups1, groups2: hgp_kernel(
-                kernel_params=kernel_params, x1=x1, x2=x2, groups1=groups1, groups2=-groups2, within_group_kernel=within_group_kernel, between_group_kernel=kernel
+                kernel_params=kernel_params,
+                x1=x1,
+                x2=x2,
+                groups1=groups1,
+                groups2=-groups2,
+                within_group_kernel=within_group_kernel,
+                between_group_kernel=kernel,
             )
         else:
             self.kernel = kernel
-        
 
-        if is_mggp:
-            num_cov_params = 3
-        elif is_hgp:
-            num_cov_params = 4
-        else:
-            num_cov_params = 2
+        if num_cov_params is None:
+            if is_mggp:
+                num_cov_params = 3
+            elif is_hgp:
+                num_cov_params = 4
+            else:
+                num_cov_params = 2
         self.num_cov_params = num_cov_params
-
-        
 
     def callback(self, params):
         pass
 
-    def set_up_objective(self, X, y, groups=None, group_distances=None, n_noise_terms=1):
+    def set_up_objective(
+        self, X, y, groups=None, group_distances=None, n_noise_terms=1
+    ):
         self.X = X
         self.y = y
         self.groups = groups
@@ -184,7 +215,13 @@ class GP:
             predict,
             log_marginal_likelihood,
             unpack_kernel_params,
-        ) = make_gp_funs(self.kernel, num_cov_params=self.num_cov_params, is_mggp=self.is_mggp, is_hgp=self.is_hgp, n_noise_terms=n_noise_terms)
+        ) = make_gp_funs(
+            self.kernel,
+            num_cov_params=self.num_cov_params,
+            is_mggp=self.is_mggp,
+            is_hgp=self.is_hgp,
+            n_noise_terms=n_noise_terms,
+        )
 
         self.num_params = num_params
         self.predict_fn = predict
@@ -202,7 +239,6 @@ class GP:
         self.init_params = 0.1 * random.normal(self.key, shape=(self.num_params,))
 
     def maximize_LL(self, tol, verbose, print_every, max_steps):
-
 
         params = 0.1 * onp.random.normal(size=(self.num_params))
 
@@ -224,7 +260,11 @@ class GP:
                 break
             last_mll = curr_mll
             if verbose and step_num % print_every == 0:
-                print("Step: {:<15} MLL: {}".format(step_num, onp.round(-1 * onp.asarray(curr_mll), 2)))
+                print(
+                    "Step: {:<15} Log marginal lik.: {}".format(
+                        step_num, onp.round(-1 * onp.asarray(curr_mll), 2)
+                    )
+                )
 
         self.params_dict = self.pack_params(get_params(opt_state))
         self.params = get_params(opt_state)
@@ -241,14 +281,14 @@ class GP:
             "amplitude": transformation(params[2]),
         }
         if self.num_cov_params == 2:
-            param_dict["lengthscale"] = transformation(params[3]),
+            param_dict["lengthscale"] = (transformation(params[3]),)
         elif self.num_cov_params == 3:
-            param_dict["group_diff_param"] = transformation(params[3]),
-            param_dict["lengthscale"] = transformation(params[4]),
+            param_dict["group_diff_param"] = (transformation(params[3]),)
+            param_dict["lengthscale"] = (transformation(params[4]),)
         elif self.num_cov_params == 3:
-            param_dict["lengthscale"] = transformation(params[3]),
-            param_dict["amplitude_within_group"] = transformation(params[4]),
-            param_dict["lengthscale_within_group"] = transformation(params[5]),
+            param_dict["lengthscale"] = (transformation(params[3]),)
+            param_dict["amplitude_within_group"] = (transformation(params[4]),)
+            param_dict["lengthscale_within_group"] = (transformation(params[5]),)
         return param_dict
 
     def print_params(self):
@@ -283,8 +323,16 @@ class GP:
         else:
             n_noise_terms = 1
 
-        self.set_up_objective(X, y, groups=groups, group_distances=group_distances, n_noise_terms=n_noise_terms)
-        self.maximize_LL(tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps)
+        self.set_up_objective(
+            X,
+            y,
+            groups=groups,
+            group_distances=group_distances,
+            n_noise_terms=n_noise_terms,
+        )
+        self.maximize_LL(
+            tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps
+        )
 
     def predict(self, X_test, groups_test=None, return_cov=False):
 

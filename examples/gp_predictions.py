@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax.random as random
 import matplotlib.pyplot as plt
-from multigroupGP import GP, rbf_kernel
+from multigroupGP import GP, rbf_kernel, matern12_kernel
 
 key = random.PRNGKey(1)
 

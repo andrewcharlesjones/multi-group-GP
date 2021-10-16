@@ -27,13 +27,19 @@ all_fnames = os.listdir(DATA_DIR)
 
 data_fnames = np.sort([x for x in all_fnames if "_expression.csv" in x])
 output_fnames = np.sort([x for x in all_fnames if "_ischemic_time.csv" in x])
-
+# import ipdb; ipdb.set_trace()
 desired_subset = [
     "Brain_Cortex",
-    "Brain_Anterior_cingulate_cortex_(BA24)",
-    "Brain_Frontal_Cortex_(BA9)",
-    "Artery_Coronary",
-    "Artery_Tibial",
+    # "Brain_Anterior_cingulate_cortex_(BA24)",
+    # "Brain_Frontal_Cortex_(BA9)",
+    "Brain_Hypothalamus",
+    # "Heart_Atrial_Appendage",
+    # "Heart_Left_Ventricle",
+    # "Cervix_Endocervix",
+    # "Cervix_Ectocervix",
+    "Esophagus_Mucosa",
+    "Esophagus_Gastroesophageal_Junction",
+    # "Esophagus_Muscularis",
 ]
 data_fnames = np.array([x for x in data_fnames if "_".join(x.split("_")[:-1]) in desired_subset])
 output_fnames = np.array([x for x in output_fnames if "_".join(x.split("_")[:-2]) in desired_subset])
@@ -62,7 +68,7 @@ output_col = "TRISCHD"
 
 n_repeats = 5
 n_genes = 50
-n_samples = None
+n_samples = 100
 
 n_groups = len(tissue_labels)
 n_groups_per_test = 2
@@ -192,8 +198,9 @@ for ii in range(n_repeats):
             mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
             mggp.fit(X, Y, groups_ints, verbose=True, group_specific_noise_terms=True)# , print_every=1, tol=1.)
 
-            estimated_a = np.exp(mggp.params[-2]) + 1e-6
+            estimated_a = np.exp(mggp.params[-2])
             a_matrix[ii, jj, kk] = estimated_a
+            
             
 pbar.close()
 

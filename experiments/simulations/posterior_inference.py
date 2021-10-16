@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pcpca import PCPCA
 import numpy as np
-# import pystan
 import stan
 from hashlib import md5
 from os.path import join as pjoin
@@ -13,6 +12,8 @@ import os
 from sklearn.model_selection import train_test_split
 from multigroupGP import multigroup_rbf_kernel
 import arviz as az
+import pandas as pd
+import seaborn as sns
 
 MODEL_DIR = "../../multigroupGP/models"
 
@@ -26,7 +27,7 @@ N_WARMUP_ITER = 200
 N_CHAINS = 4
 
 frac_train = 0.75
-n0, n1 = 50, 50
+n0, n1 = 100, 100
 ntotal = n0 + n1
 noise_variance = 0.1
 p = 1
@@ -185,40 +186,72 @@ plt.savefig("../../plots/mggp_predictive_samples.png")
 # plt.show()
 plt.close()
 
-plt.figure(figsize=(14, 14))
-plt.subplot(231)
-plt.hist(fit["alpha"].squeeze())
-plt.xlabel(r"$a$")
-plt.ylabel("Density")
-plt.axvline(a_true, color="red", linestyle="--")
-
-plt.subplot(232)
-plt.hist(fit["lengthscale"].squeeze())
-plt.xlabel(r"$b$")
-plt.ylabel("Density")
-plt.axvline(b_true, color="red", linestyle="--")
-
-plt.subplot(233)
-plt.hist(fit["outputvariance"].squeeze())
-plt.xlabel(r"$\sigma^2$")
-plt.ylabel("Density")
-plt.axvline(sigma2_true, color="red", linestyle="--")
-
-plt.subplot(234)
-plt.hist(fit["beta"][0, :].squeeze())
-plt.xlabel(r"$\beta_1$")
-plt.ylabel("Density")
-plt.axvline(mean_intercepts[0], color="red", linestyle="--")
-
-plt.subplot(235)
-plt.hist(fit["beta"][1, :].squeeze())
-plt.xlabel(r"$\beta_2$")
-plt.ylabel("Density")
-plt.axvline(mean_intercepts[1], color="red", linestyle="--")
-
+samples_df = pd.DataFrame(
+    {
+        r"$a$": fit["alpha"].squeeze(),
+        r"$b$": fit["lengthscale"].squeeze(),
+        r"$\sigma^2$": fit["outputvariance"].squeeze(),
+        r"$\beta_1$": fit["beta"][0, :].squeeze(),
+        r"$\beta_2$": fit["beta"][1, :].squeeze(),
+        r"$\tau^2$": fit["sigma"].squeeze()**2,
+    }
+)
+samples_df_melted = pd.melt(samples_df)
+truth_df = pd.DataFrame(
+    {
+        r"$a$": [a_true],
+        r"$b$": [b_true],
+        r"$\sigma^2$": [sigma2_true],
+        r"$\beta_1$": [mean_intercepts[0]],
+        r"$\beta_2$": [mean_intercepts[1]],
+        r"$\tau^2$": noise_variance,
+    }
+)
+truth_df_melted = pd.melt(truth_df)
+plt.figure(figsize=(7, 5))
+sns.boxplot(data=samples_df_melted, y="variable", x="value", orient="h", color="gray")
+sns.pointplot(data=truth_df_melted, y="variable", x="value", join=False, orient="h", marker="x", color="red")
+plt.ylabel("")
+plt.xlabel("Samples")
+plt.tight_layout()
 plt.savefig("../../plots/mggp_hyperparameter_samples.png")
-# plt.show()
-plt.close()
+plt.show()
+import ipdb; ipdb.set_trace()
+
+# plt.figure(figsize=(14, 14))
+# plt.subplot(231)
+# plt.hist(fit["alpha"].squeeze())
+# plt.xlabel(r"$a$")
+# plt.ylabel("Density")
+# plt.axvline(a_true, color="red", linestyle="--")
+
+# plt.subplot(232)
+# plt.hist(fit["lengthscale"].squeeze())
+# plt.xlabel(r"$b$")
+# plt.ylabel("Density")
+# plt.axvline(b_true, color="red", linestyle="--")
+
+# plt.subplot(233)
+# plt.hist(fit["outputvariance"].squeeze())
+# plt.xlabel(r"$\sigma^2$")
+# plt.ylabel("Density")
+# plt.axvline(sigma2_true, color="red", linestyle="--")
+
+# plt.subplot(234)
+# plt.hist(fit["beta"][0, :].squeeze())
+# plt.xlabel(r"$\beta_1$")
+# plt.ylabel("Density")
+# plt.axvline(mean_intercepts[0], color="red", linestyle="--")
+
+# plt.subplot(235)
+# plt.hist(fit["beta"][1, :].squeeze())
+# plt.xlabel(r"$\beta_2$")
+# plt.ylabel("Density")
+# plt.axvline(mean_intercepts[1], color="red", linestyle="--")
+
+# # plt.savefig("../../plots/mggp_hyperparameter_samples.png")
+# # plt.show()
+# plt.close()
 
 # print(arviz_summary.r_hat.values)
 

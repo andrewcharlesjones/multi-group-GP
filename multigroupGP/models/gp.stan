@@ -68,11 +68,12 @@ transformed parameters {
 }
 model {
   outputvariance ~ inv_gamma(5, 5);
-  lengthscale ~ inv_gamma(1, 1);
+  lengthscale ~ inv_gamma(5, 5);
   sigma ~ inv_gamma(1, 1);
   alpha ~ inv_gamma(5, 5);
-  beta[1] ~ std_normal();
-  beta[2] ~ std_normal();
+  //beta[1] ~ std_normal();
+  //beta[2] ~ std_normal();
+  beta ~ std_normal();
   eta ~ std_normal();
   y1 ~ normal(f[1:N1] + design1 * beta, sigma);
 }

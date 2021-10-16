@@ -16,17 +16,6 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 import sys
-
-# sys.path.append("../../models")
-# sys.path.append("../../kernels")
-# from gp import (
-#     GP
-# )
-# from kernels import (
-#     hgp_kernel,
-#     rbf_kernel,
-#     multigroup_rbf_kernel,
-# )
 from multigroupGP import GP, rbf_kernel, multigroup_rbf_kernel
 
 import matplotlib

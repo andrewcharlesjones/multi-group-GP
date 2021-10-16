@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax.random as random
 import matplotlib.pyplot as plt
-from multigroupGP import GP, multigroup_rbf_kernel, multigroup_matern12_kernel
+from multigroupGP import GP, multigroup_matern12_kernel
 import numpy as onp
 
 import matplotlib
@@ -17,7 +17,7 @@ true_params = [
     jnp.zeros(1),  # Amplitude
     jnp.zeros(1),  # Group difference parameter (a)
     jnp.zeros(1),  # Lengthscale
-    # jnp.zeros(1),  # Dependency scale (multi-group Matern only)
+    jnp.zeros(1),  # Dependency scale
 ]
 
 ## Generate data
@@ -35,7 +35,7 @@ onp.fill_diagonal(group_dist_mat, 0)
 X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
 
 K_XX = (
-    multigroup_rbf_kernel(
+    multigroup_matern12_kernel(
         true_params,
         x1=X,
         groups1=X_groups,
@@ -46,8 +46,7 @@ K_XX = (
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
 ## Set up GP
-# mggp = GP(kernel=multigroup_matern12_kernel, key=key, is_mggp=True, num_cov_params=4)
-mggp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
+mggp = GP(kernel=multigroup_matern12_kernel, key=key, is_mggp=True, num_cov_params=4)
 mggp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat, group_specific_noise_terms=True)
 
 ## Predict

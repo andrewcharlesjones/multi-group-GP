@@ -16,22 +16,22 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from matplotlib.pyplot import cm
 from matplotlib.cm import get_cmap
-from scipy.stats import pearsonr
 
 import sys
 
-sys.path.append("../../models")
-from gaussian_process import (
-    MGGP,
-    GP,
-    HGP,
-)
-sys.path.append("../../kernels")
-from kernels import (
-    hierarchical_multigroup_kernel,
-    rbf_covariance,
-    multigroup_rbf_covariance,
-)
+# sys.path.append("../../models")
+# from gaussian_process import (
+#     MGGP,
+#     GP,
+#     HGP,
+# )
+# sys.path.append("../../kernels")
+# from kernels import (
+#     hierarchical_multigroup_kernel,
+#     rbf_covariance,
+#     multigroup_rbf_covariance,
+# )
+from multigroupGP import GP, multigroup_rbf_kernel
 
 import matplotlib
 
@@ -160,9 +160,9 @@ X = np.expand_dims(X, axis=1)
 ######### Fit MGGP #########
 ############################
 
-mggp = MGGP(kernel=multigroup_rbf_covariance)
+mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
 
-mggp.fit(X, Y, X_groups, group_dist_mat)
+mggp.fit(X, Y, groups=groups_ints, group_distances=group_dist_mat)
 
 
 X_test_one_group = np.linspace(np.min(X), np.max(X), n_test)
@@ -183,7 +183,7 @@ X_test = np.concatenate(X_test, axis=0)
 X_groups_test = np.concatenate(X_groups_test, axis=0)
 groups_ints_test = np.concatenate(groups_ints_test)
 
-preds_mean = mggp.predict(X_test, X_groups_test)
+preds_mean = mggp.predict(X_test, groups_ints_test)
 
 plt.figure(figsize=(9, 6))
 cmap = get_cmap("tab10")
@@ -203,7 +203,8 @@ for kk in range(n_groups):
         linewidth=5,
     )
 
-plt.title(gene_name)
+# plt.title(gene_name)
+# plt.title("AHNAK")
 
 
 pearsonr(X[groups_ints == 0].squeeze(), Y[groups_ints == 0])[0]
@@ -211,7 +212,7 @@ pearsonr(X[groups_ints == 1].squeeze(), Y[groups_ints == 1])[0]
 pearsonr(X[groups_ints == 2].squeeze(), Y[groups_ints == 2])[0]
 
 plt.legend()
-plt.ylabel("Gene expression")
+plt.ylabel("AHNAK expression")
 plt.xlabel("Ischemic time")
 plt.tight_layout()
 plt.savefig("../../plots/gtex_one_gene_relationship_{}.png".format(gene_name))

@@ -12,7 +12,7 @@ The MGGP software can be installed with `pip`:
 
 ## Usage
 
-The multigroupGP package supports both standard GPs and multi-group GP. Crucially, the primary difference between multi- and single-group GPs is the choice of covariance function. We first show typical usage for standard GPs (since this is likely more familiar to users), and then show how to use the package in the multi-group setting.
+The multigroupGP package supports both standard GPs and multi-group GP. Crucially, the primary difference between multi- and single-group GPs is the choice of covariance function. In this README, we first show typical usage for standard GPs (since this is likely more familiar to users), and then show how to use the package in the multi-group setting.
 
 ### Standard GP
 
@@ -32,29 +32,36 @@ gp.predict(Xtest)
 
 ### Multi-group GP
 
-If our data contains multiple known subgroups of samples, we can account for these with an MGGP. Suppose we again have an explanatory matrix `X` and response vector `y`, and we also have an `n`-vector of integer group labels, `Xgroups`. We can then fit an MGGP as follows:
+If our data contains multiple known subgroups of samples, we can account for these with an MGGP. Suppose we again have an explanatory matrix `X` and response vector `y`, and we also have an `n`-vector of integer group labels, `Xgroups`. To initialize an MGGP, we have to make two changes:
+
+1. Switch the `is_mggp` argument to `True`,
+2. Use an appropriate multi-group covariance (kernel) function.
+
+We can then fit an MGGP as follows:
 
 ```python
 from multigroupGP import GP, multigroup_rbf_kernel
-gp = GP(kernel=multigroup_rbf_kernel)
-gp.fit(X, y, groups=Xgroups)
+mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+mggp.fit(X, y, groups=Xgroups)
 ```
 
 By default, the MGGP assumes that groups are equally similar to one another a priori. However, if we have prior knowledge about group similarities, we can encode this in the `group_distances` argument of the `fit` function. If we have `k` total groups, `group_distances` argument should be a `k x k` numpy array, where element `ij` contains the "distance" between group `i` and group `j` (lower values indicate that the groups are more similar). Note that the `group_distances` argument is only relevant when `k>2` because the distances will be arbitrarily rescaled during fitting in the two-group case. We can then fit the MGGP as follows:
 
 ```python
 from multigroupGP import GP, multigroup_rbf_kernel
-gp = GP(kernel=multigroup_rbf_kernel)
-gp.fit(X, y, groups=Xgroups, group_distances=Xgroup_distances)
+mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+mggp.fit(X, y, groups=Xgroups, group_distances=Xgroup_distances)
 ```
 
 After fitting, predictions can be made for a test matrix `Xtest` as follows:
 
 ```python
-gp.predict(Xtest, groups_test=Xtest_groups)
+mggp.predict(Xtest, groups_test=Xtest_groups)
 ```
 
 ## Example
+
+Below is a full regression example with the MGGP.
 
 ```python
 import jax.numpy as jnp
@@ -65,13 +72,15 @@ import numpy as onp
 
 key = random.PRNGKey(1)
 
+## True kernel parameters for data generation
 true_params = [
     jnp.zeros(1),  # Amplitude
     jnp.zeros(1),  # Group difference parameter (a)
     jnp.zeros(1),  # Lengthscale
 ]
-
 noise_variance = 0.05
+
+## Generate data
 n0, n1 = 100, 100
 p = 1
 n = n0 + n1
@@ -95,16 +104,18 @@ K_XX = (
 )
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
-
+## Fit MGP
 gp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
 gp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat)
 
+## Make predictions
 ntest = 200
 Xtest_onegroup = jnp.linspace(-10, 10, ntest)[:, None]
 Xtest = jnp.concatenate([Xtest_onegroup, Xtest_onegroup], axis=0)
 Xtest_groups = onp.concatenate([onp.zeros(ntest), onp.ones(ntest)]).astype(int)
 preds_mean = gp.predict(Xtest, groups_test=Xtest_groups)
 
+## Plot
 plt.figure(figsize=(10, 5))
 plt.scatter(X[:n0], Y[:n0], color="black", label="Data, group 1")
 plt.scatter(X[n0:], Y[n0:], color="gray", label="Data, group 2")

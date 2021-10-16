@@ -148,7 +148,6 @@ def multigroup_matern12_covariance(
     dists *= diff_group_scaling_term ** 0.5
 
     K = premult_term_full * np.exp(-dists)
-    # import ipdb; ipdb.set_trace()
 
     return K
 
