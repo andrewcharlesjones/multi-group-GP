@@ -2,6 +2,8 @@
 *.txt
 *.sh
 
+!requirements.txt
+
 job.slurm*
 
 meetings/
