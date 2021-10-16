@@ -14,6 +14,15 @@ The MGGP software can be installed with `pip`:
 
 The multigroupGP package supports both standard GPs and multi-group GP. Crucially, the primary difference between multi- and single-group GPs is the choice of covariance function. In this README, we first show typical usage for standard GPs (since this is likely more familiar to users), and then show how to use the package in the multi-group setting.
 
+### Covariance functions
+
+Currently, there are four covariance implemented in the `multigroupGP` package:
+
+- `rbf_kernel` (radial basis function kernel, also known as the exponential quadratic)
+- `multigroup_rbf_kernel` (multi-group extension of the RBF kernel)
+- `matern12_kernel` (Matérn 1/2 kernel)
+- `multigroup_matern12_kernel` (multi-group extension of the Matérn 1/2 kernel)
+
 ### Standard GP
 
 Given an `n x p` matrix `X` of explanatory variables and an `n`-vector `y` containing responses, a standard GP can be fit as follows:
