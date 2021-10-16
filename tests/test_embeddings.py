@@ -1,4 +1,4 @@
-from multigroupGP import multigroup_rbf_kernel, embed_distance_matrix
+from multigroupGP import embed_distance_matrix
 import numpy as np
 from sklearn.metrics import pairwise_distances
 import matplotlib.pyplot as plt
