@@ -109,10 +109,8 @@ data = {
 }
 
 ## Load model
-with open(pjoin(MODEL_DIR, "gp.stan"), "r") as file:
+with open(pjoin(MODEL_DIR, "mggp.stan"), "r") as file:
     model_code = file.read()
-# code_hash = md5(model_code.encode("ascii")).hexdigest()
-# cache_fn = pjoin(MODEL_DIR, "cached_stan_models", "cached-model-{}.pkl".format(code_hash))
 
 # Set up model
 posterior = stan.build(model_code, data=data)
@@ -238,47 +236,7 @@ plt.ylabel("")
 plt.xlabel("Samples")
 plt.tight_layout()
 plt.savefig("../../plots/mggp_hyperparameter_samples.png")
-plt.show()
-import ipdb
-
-ipdb.set_trace()
-
-# plt.figure(figsize=(14, 14))
-# plt.subplot(231)
-# plt.hist(fit["alpha"].squeeze())
-# plt.xlabel(r"$a$")
-# plt.ylabel("Density")
-# plt.axvline(a_true, color="red", linestyle="--")
-
-# plt.subplot(232)
-# plt.hist(fit["lengthscale"].squeeze())
-# plt.xlabel(r"$b$")
-# plt.ylabel("Density")
-# plt.axvline(b_true, color="red", linestyle="--")
-
-# plt.subplot(233)
-# plt.hist(fit["outputvariance"].squeeze())
-# plt.xlabel(r"$\sigma^2$")
-# plt.ylabel("Density")
-# plt.axvline(sigma2_true, color="red", linestyle="--")
-
-# plt.subplot(234)
-# plt.hist(fit["beta"][0, :].squeeze())
-# plt.xlabel(r"$\beta_1$")
-# plt.ylabel("Density")
-# plt.axvline(mean_intercepts[0], color="red", linestyle="--")
-
-# plt.subplot(235)
-# plt.hist(fit["beta"][1, :].squeeze())
-# plt.xlabel(r"$\beta_2$")
-# plt.ylabel("Density")
-# plt.axvline(mean_intercepts[1], color="red", linestyle="--")
-
-# # plt.savefig("../../plots/mggp_hyperparameter_samples.png")
-# # plt.show()
-# plt.close()
-
-# print(arviz_summary.r_hat.values)
+plt.close()
 
 az.plot_autocorr(fit, var_names=["lengthscale", "outputvariance", "alpha"])
 plt.tight_layout()

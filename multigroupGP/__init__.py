@@ -1,8 +1,10 @@
 from multigroupGP.models.gp import GP, hgp_kernel
 from multigroupGP.kernels.kernels import (
-    rbf_kernel,
-    matern12_kernel,
-    multigroup_rbf_kernel,
-    multigroup_matern12_kernel,
-    embed_distance_matrix,
+    RBF,
+    Matern12,
+    MultiGroupRBF,
+    MultiGroupMatern12,
+)
+from multigroupGP.kernels.kernels import (
+    embed_distance_matrix
 )

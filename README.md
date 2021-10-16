@@ -19,12 +19,23 @@ The multigroupGP package supports both standard GPs and multi-group GP. Cruciall
 
 ### Covariance functions
 
-Currently, there are four covariance implemented in the `multigroupGP` package:
+Currently, there are four covariance implemented in the `multigroupGP` package, each as a subclass inheriting from an abstract `Kernel` class:
 
-- `rbf_kernel` (radial basis function kernel, also known as the exponential quadratic)
-- `multigroup_rbf_kernel` (multi-group extension of the RBF kernel)
-- `matern12_kernel` (Matérn 1/2 kernel)
-- `multigroup_matern12_kernel` (multi-group extension of the Matérn 1/2 kernel)
+- `RBF` (radial basis function kernel, also known as the exponential quadratic)
+- `MultiGroupRBF` (multi-group extension of the RBF kernel)
+- `Matern12` (Matérn 1/2 kernel)
+- `MultiGroupMatern12` (multi-group extension of the Matérn 1/2 kernel)
+
+Each covariance function can be initialized and then called to evaluate the function on all pairs of samples (all classes assume the samples are on the rows). For example, if we have two data matrices `X1` and `X2`, the we could do:
+
+```python
+from multigroupGP import RBF
+rbf = RBF()
+kernel_params = [1., 1.] # [amplitude, length scale]
+K = rbf(kernel_params, X1, X2, log_params=False)
+```
+
+Here, `log_params` is a boolean argument specifying whether to exponentiate the parameters (this is useful for ensuring positivity).
 
 ### Estimation and inference
 
@@ -39,8 +50,8 @@ The `multigroupGP` package offers both maximum likelihood estimation and full Ba
 Given an `n x p` matrix `X` of explanatory variables and an `n`-vector `y` containing responses, a standard GP can be fit as follows:
 
 ```python
-from multigroupGP import GP, rbf_kernel
-gp = GP(kernel=rbf_kernel)
+from multigroupGP import GP, RBF
+gp = GP(kernel=RBF())
 gp.fit(X, y)
 ```
 
@@ -60,16 +71,16 @@ If our data contains multiple known subgroups of samples, we can account for the
 We can then fit an MGGP as follows:
 
 ```python
-from multigroupGP import GP, multigroup_rbf_kernel
-mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+from multigroupGP import GP, MultiGroupRBF
+mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
 mggp.fit(X, y, groups=Xgroups)
 ```
 
 By default, the MGGP assumes that groups are equally similar to one another a priori. However, if we have prior knowledge about group similarities, we can encode this in the `group_distances` argument of the `fit` function. If we have `k` total groups, `group_distances` argument should be a `k x k` numpy array, where element `ij` contains the "distance" between group `i` and group `j` (lower values indicate that the groups are more similar). Note that the `group_distances` argument is only relevant when `k>2` because the distances will be arbitrarily rescaled during fitting in the two-group case. We can then fit the MGGP as follows:
 
 ```python
-from multigroupGP import GP, multigroup_rbf_kernel
-mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+from multigroupGP import GP, MultiGroupRBF
+mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
 mggp.fit(X, y, groups=Xgroups, group_distances=Xgroup_distances)
 ```
 
@@ -95,20 +106,20 @@ Below is a full example for performing multi-group regression with the MGGP. See
 import jax.numpy as jnp
 import jax.random as random
 import matplotlib.pyplot as plt
-from multigroupGP import GP, multigroup_rbf_kernel
+from multigroupGP import GP, MultiGroupRBF
 import numpy as onp
 
 key = random.PRNGKey(1)
 
-## True kernel parameters for data generation
+## True covariance parameters
 true_params = [
     jnp.zeros(1),  # Amplitude
     jnp.zeros(1),  # Group difference parameter (a)
     jnp.zeros(1),  # Lengthscale
 ]
-noise_variance = 0.05
 
 ## Generate data
+noise_variance = 0.05
 n0, n1 = 100, 100
 p = 1
 n = n0 + n1
@@ -122,7 +133,7 @@ onp.fill_diagonal(group_dist_mat, 0)
 X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
 
 K_XX = (
-    multigroup_rbf_kernel(
+    MultiGroupRBF()(
         true_params,
         x1=X,
         groups1=X_groups,
@@ -132,16 +143,22 @@ K_XX = (
 )
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
-## Fit MGP
-gp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
-gp.fit(X, Y, groups=X_groups, group_distances=group_dist_mat)
+## Set up GP
+mggp = GP(kernel=MultiGroupRBF(), key=key, is_mggp=True)
+mggp.fit(
+    X,
+    Y,
+    groups=X_groups,
+    group_distances=group_dist_mat,
+    group_specific_noise_terms=True,
+)
 
-## Make predictions
+## Predict
 ntest = 200
 Xtest_onegroup = jnp.linspace(-10, 10, ntest)[:, None]
 Xtest = jnp.concatenate([Xtest_onegroup, Xtest_onegroup], axis=0)
 Xtest_groups = onp.concatenate([onp.zeros(ntest), onp.ones(ntest)]).astype(int)
-preds_mean = gp.predict(Xtest, groups_test=Xtest_groups)
+preds_mean = mggp.predict(Xtest, groups_test=Xtest_groups)
 
 ## Plot
 plt.figure(figsize=(10, 5))
@@ -151,9 +168,10 @@ plt.plot(Xtest[:ntest], preds_mean[:ntest], color="red", label="Predictions, gro
 plt.plot(
     Xtest[ntest:], preds_mean[ntest:], color="orange", label="Predictions, group 2"
 )
-plt.xlabel("X")
-plt.ylabel("y")
+plt.xlabel(r"$X$")
+plt.ylabel(r"$y$")
 plt.legend()
+plt.tight_layout()
 plt.show()
 ```
 

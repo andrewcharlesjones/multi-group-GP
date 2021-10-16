@@ -74,7 +74,8 @@ def make_gp_funs(
         else:
             extra_args = {}
 
-        cov_f_f = cov_func(kernel_params=cov_params, x1=xstar, x2=xstar, **extra_args)
+        cov_f_f = cov_func(params=cov_params, x1=xstar, x2=xstar, **extra_args)
+        # cov_f_f = cov_func(x1=xstar, x2=xstar, **extra_args)
 
         if is_hgp:
             extra_args = {
@@ -88,7 +89,7 @@ def make_gp_funs(
                 "group_distances": kwargs["group_distances"],
             }
 
-        cov_y_f = cov_func(kernel_params=cov_params, x1=x, x2=xstar, **extra_args)
+        cov_y_f = cov_func(params=cov_params, x1=x, x2=xstar, **extra_args)
 
         if is_hgp:
             extra_args = {
@@ -108,7 +109,7 @@ def make_gp_funs(
             noise_scale = noise_scales[kwargs["x_groups"]]
 
         cov_y_y = cov_func(
-            kernel_params=cov_params, x1=x, x2=x, **extra_args
+            params=cov_params, x1=x, x2=x, **extra_args
         ) + noise_scale * jnp.eye(len(y))
 
         chol = scipy.linalg.cholesky(cov_y_y, lower=True)
@@ -142,7 +143,7 @@ def make_gp_funs(
             noise_scale = noise_scales[kwargs["groups"]]
 
         cov_y_y = cov_func(
-            kernel_params=cov_params, x1=x, x2=x, **extra_args
+            params=cov_params, x1=x, x2=x, **extra_args
         ) + noise_scale * jnp.eye(len(y))
         prior_mean = mean * jnp.ones(len(y))
 
@@ -164,7 +165,7 @@ class GP:
         is_hgp=False,
         within_group_kernel=None,
         key=random.PRNGKey(0),
-        num_cov_params=None,
+        # num_cov_params=None,
     ):
 
         self.key = key
@@ -189,15 +190,6 @@ class GP:
         else:
             self.kernel = kernel
 
-        if num_cov_params is None:
-            if is_mggp:
-                num_cov_params = 3
-            elif is_hgp:
-                num_cov_params = 4
-            else:
-                num_cov_params = 2
-        self.num_cov_params = num_cov_params
-
     def callback(self, params):
         pass
 
@@ -217,7 +209,7 @@ class GP:
             unpack_kernel_params,
         ) = make_gp_funs(
             self.kernel,
-            num_cov_params=self.num_cov_params,
+            num_cov_params=self.kernel.num_cov_params,
             is_mggp=self.is_mggp,
             is_hgp=self.is_hgp,
             n_noise_terms=n_noise_terms,
@@ -266,30 +258,31 @@ class GP:
                     )
                 )
 
-        self.params_dict = self.pack_params(get_params(opt_state))
+        # self.params_dict = self.pack_params(get_params(opt_state))
         self.params = get_params(opt_state)
+        self.kernel.params = get_params(opt_state)[-self.kernel.num_cov_params:]
 
-    def pack_params(self, params, exp=True):
-        if exp:
-            transformation = lambda x: jnp.exp(x)
-        else:
-            transformation = lambda x: x
+    # def pack_params(self, params, exp=True):
+    #     if exp:
+    #         transformation = lambda x: jnp.exp(x)
+    #     else:
+    #         transformation = lambda x: x
 
-        param_dict = {
-            "mean": params[0],
-            "noise_variance": transformation(params[1]),
-            "amplitude": transformation(params[2]),
-        }
-        if self.num_cov_params == 2:
-            param_dict["lengthscale"] = (transformation(params[3]),)
-        elif self.num_cov_params == 3:
-            param_dict["group_diff_param"] = (transformation(params[3]),)
-            param_dict["lengthscale"] = (transformation(params[4]),)
-        elif self.num_cov_params == 3:
-            param_dict["lengthscale"] = (transformation(params[3]),)
-            param_dict["amplitude_within_group"] = (transformation(params[4]),)
-            param_dict["lengthscale_within_group"] = (transformation(params[5]),)
-        return param_dict
+    #     param_dict = {
+    #         "mean": params[0],
+    #         "noise_variance": transformation(params[1]),
+    #         "amplitude": transformation(params[2]),
+    #     }
+    #     if self.kernel.num_cov_params == 2:
+    #         param_dict["lengthscale"] = (transformation(params[3]),)
+    #     elif self.kernel.num_cov_params == 3:
+    #         param_dict["group_diff_param"] = (transformation(params[3]),)
+    #         param_dict["lengthscale"] = (transformation(params[4]),)
+    #     elif self.kernel.num_cov_params == 3:
+    #         param_dict["lengthscale"] = (transformation(params[3]),)
+    #         param_dict["amplitude_within_group"] = (transformation(params[4]),)
+    #         param_dict["lengthscale_within_group"] = (transformation(params[5]),)
+    #     return param_dict
 
     def print_params(self):
         for key, val in self.params_dict.items():

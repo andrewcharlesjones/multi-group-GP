@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax.random as random
 import matplotlib.pyplot as plt
-from multigroupGP import GP, multigroup_rbf_kernel, multigroup_matern12_kernel
+from multigroupGP import GP, MultiGroupRBF, MultiGroupMatern12
 import numpy as onp
 
 import matplotlib
@@ -35,7 +35,7 @@ onp.fill_diagonal(group_dist_mat, 0)
 X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
 
 K_XX = (
-    multigroup_rbf_kernel(
+    MultiGroupRBF()(
         true_params,
         x1=X,
         groups1=X_groups,
@@ -46,8 +46,8 @@ K_XX = (
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
 ## Set up GP
-# mggp = GP(kernel=multigroup_matern12_kernel, key=key, is_mggp=True, num_cov_params=4)
-mggp = GP(kernel=multigroup_rbf_kernel, key=key, is_mggp=True)
+# mggp = GP(kernel=MultiGroupMatern12(), key=key, is_mggp=True)
+mggp = GP(kernel=MultiGroupRBF(), key=key, is_mggp=True)
 mggp.fit(
     X,
     Y,
