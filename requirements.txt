@@ -9,7 +9,5 @@ numpy==1.18.5
 arviz==0.9.0
 autograd==1.3
 absl_py==0.10.0
-pcpca==0.1
 gaussian_process==0.0.14
 scikit_learn==1.0
-pystan==1.0
