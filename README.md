@@ -11,6 +11,8 @@ The MGGP Python package can be installed with `pip`:
 
 `pip install multigroupGP`
 
+You may also need to install the dependencies in `requirements.txt`.
+
 ## Usage
 
 The multigroupGP package supports both standard GPs and multi-group GP. Crucially, the primary difference between multi- and single-group GPs is the choice of covariance function. In this README, we first show typical usage for standard GPs (since this is likely more familiar to users), and then show how to use the package in the multi-group setting.
