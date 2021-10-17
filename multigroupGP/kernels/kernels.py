@@ -40,9 +40,9 @@ class Kernel(ABC):
     def transform_params(self, params, log_params):
         params = jnp.array(params)
         if log_params:
-            transf = lambda x: jnp.exp(params)
+            def transf(x): return jnp.exp(params)
         else:
-            transf = lambda x: params
+            def transf(x): return params
         return transf(params)
 
 
@@ -93,10 +93,12 @@ class Matern12(Kernel):
     ):
         if xs2 is None:
             return vmap(
-                lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
+                lambda x: vmap(lambda y: cov_func(
+                    x, y, lengthscale=lengthscale))(xs)
             )(xs)
         return vmap(
-            lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
+            lambda x: vmap(lambda y: cov_func(
+                x, y, lengthscale=lengthscale))(xs)
         )(xs2).T
 
     def __call__(self, params, x1, x2=None, log_params=True):
@@ -185,7 +187,7 @@ class MultiGroupRBF(Kernel):
 
         assert onp.all(onp.diag(group_distances) == 0)
 
-        ## Embed group distance matrix in Euclidean space for convenience.
+        # Embed group distance matrix in Euclidean space for convenience.
         embedding = embed_distance_matrix(group_distances)
 
         x1 = x1 / (lengthscale)
@@ -307,7 +309,7 @@ class MultiGroupMatern12(Kernel):
 
         assert onp.all(onp.diag(group_distances) == 0)
 
-        ## Embed group distance matrix in Euclidean space for convenience.
+        # Embed group distance matrix in Euclidean space for convenience.
         embedding = embed_distance_matrix(group_distances)
 
         group_embeddings1 = jnp.array([embedding[xx] for xx in groups1])

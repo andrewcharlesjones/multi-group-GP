@@ -1,6 +1,7 @@
 *.csv
 *.txt
 *.sh
+*.Rhistory
 
 !requirements.txt
 
@@ -13,5 +14,6 @@ __pycache__/
 cached_models/
 cached_stan_models/
 experiments/simulations/build/
+experiments/gtex/
 
 **/.DS_Store

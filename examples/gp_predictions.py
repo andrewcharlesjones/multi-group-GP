@@ -21,8 +21,8 @@ Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
 Xtest = jnp.linspace(-10, 10, 200)[:, None]
 
-# kernel = RBF()
-kernel = Matern12()
+kernel = RBF()
+# kernel = Matern12()
 gp = GP(kernel=kernel, key=key)
 gp.fit(X, Y)
 preds_mean = gp.predict(Xtest)
