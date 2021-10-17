@@ -5,6 +5,4 @@ from multigroupGP.kernels.kernels import (
     MultiGroupRBF,
     MultiGroupMatern12,
 )
-from multigroupGP.kernels.kernels import (
-    embed_distance_matrix
-)
+from multigroupGP.kernels.kernels import embed_distance_matrix

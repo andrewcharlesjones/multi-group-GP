@@ -74,7 +74,6 @@ def make_gp_funs(
             extra_args = {}
 
         cov_f_f = cov_func(params=cov_params, x1=xstar, x2=xstar, **extra_args)
-        # cov_f_f = cov_func(x1=xstar, x2=xstar, **extra_args)
 
         if is_hgp:
             extra_args = {
@@ -164,7 +163,6 @@ class GP:
         is_hgp=False,
         within_group_kernel=None,
         key=random.PRNGKey(0),
-        # num_cov_params=None,
     ):
 
         self.key = key
@@ -257,31 +255,11 @@ class GP:
                     )
                 )
 
-        # self.params_dict = self.pack_params(get_params(opt_state))
-        self.params = get_params(opt_state)
-        self.kernel.params = get_params(opt_state)[-self.kernel.num_cov_params:]
-
-    # def pack_params(self, params, exp=True):
-    #     if exp:
-    #         transformation = lambda x: jnp.exp(x)
-    #     else:
-    #         transformation = lambda x: x
-
-    #     param_dict = {
-    #         "mean": params[0],
-    #         "noise_variance": transformation(params[1]),
-    #         "amplitude": transformation(params[2]),
-    #     }
-    #     if self.kernel.num_cov_params == 2:
-    #         param_dict["lengthscale"] = (transformation(params[3]),)
-    #     elif self.kernel.num_cov_params == 3:
-    #         param_dict["group_diff_param"] = (transformation(params[3]),)
-    #         param_dict["lengthscale"] = (transformation(params[4]),)
-    #     elif self.kernel.num_cov_params == 3:
-    #         param_dict["lengthscale"] = (transformation(params[3]),)
-    #         param_dict["amplitude_within_group"] = (transformation(params[4]),)
-    #         param_dict["lengthscale_within_group"] = (transformation(params[5]),)
-    #     return param_dict
+        fitted_params = get_params(opt_state)
+        cov_params = fitted_params[-self.kernel.num_cov_params :]
+        self.params = fitted_params
+        self.kernel.store_params(jnp.exp(cov_params))
+        self.kernel.is_fitted = True
 
     def print_params(self):
         for key, val in self.params_dict.items():
@@ -339,4 +317,3 @@ class GP:
             return_cov=return_cov,
         )
         return preds
-

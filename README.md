@@ -30,9 +30,8 @@ Each covariance function can be initialized and then called to evaluate the func
 
 ```python
 from multigroupGP import RBF
-rbf = RBF()
-kernel_params = [1., 1.] # [amplitude, length scale]
-K = rbf(kernel_params, X1, X2, log_params=False)
+rbf = RBF(amplitude=1., lengthscale=1.)
+K = rbf(X1, X2, log_params=False)
 ```
 
 Here, `log_params` is a boolean argument specifying whether to exponentiate the parameters (this is useful for ensuring positivity).
@@ -111,13 +110,6 @@ import numpy as onp
 
 key = random.PRNGKey(1)
 
-## True covariance parameters
-true_params = [
-    jnp.zeros(1),  # Amplitude
-    jnp.zeros(1),  # Group difference parameter (a)
-    jnp.zeros(1),  # Lengthscale
-]
-
 ## Generate data
 noise_variance = 0.05
 n0, n1 = 100, 100
@@ -127,16 +119,15 @@ X0 = random.uniform(key, minval=-10, maxval=10, shape=(n0, 1))
 X1 = random.uniform(key, minval=-10, maxval=10, shape=(n1, 1))
 X = jnp.concatenate([X0, X1], axis=0)
 
-group_dist_mat = onp.ones((2, 2))
-onp.fill_diagonal(group_dist_mat, 0)
+group_dist_mat = onp.ones((2, 2)) - onp.eye(2)
 
 X_groups = onp.concatenate([onp.zeros(n0), onp.ones(n1)]).astype(int)
 
+kernel_true = MultiGroupRBF(amplitude=1.0, lengthscale=1.0, group_diff_param=1.0)
 K_XX = (
-    MultiGroupRBF()(
-        true_params,
+    kernel_true(
         x1=X,
-        groups1=X_groups,
+        groups1=X_groups.astype(float),
         group_distances=group_dist_mat,
     )
     + noise_variance * jnp.eye(n)
@@ -144,7 +135,8 @@ K_XX = (
 Y = random.multivariate_normal(random.PRNGKey(12), jnp.zeros(n), K_XX)
 
 ## Set up GP
-mggp = GP(kernel=MultiGroupRBF(), key=key, is_mggp=True)
+kernel = MultiGroupRBF()
+mggp = GP(kernel=kernel, key=key, is_mggp=True)
 mggp.fit(
     X,
     Y,

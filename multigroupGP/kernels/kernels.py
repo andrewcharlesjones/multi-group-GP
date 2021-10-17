@@ -6,6 +6,8 @@ import numpy as onp
 from .util import embed_distance_matrix
 
 
+CASTING_WARNING = "\n\n⚠️ Casting group labels to integers. Make sure your group labels are ints to avoid undue casting! ⚠️\n"
+
 ##############################
 ####### Abstract class #######
 ##############################
@@ -26,6 +28,10 @@ class Kernel(ABC):
     def kernel_vectorized(self):
         pass
 
+    @abstractmethod
+    def store_params(self, params):
+        pass
+
     def cov_map(self, cov_func, xs, xs2=None):
         if xs2 is None:
             return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs)
@@ -40,9 +46,15 @@ class Kernel(ABC):
     def transform_params(self, params, log_params):
         params = jnp.array(params)
         if log_params:
-            def transf(x): return jnp.exp(params)
+
+            def transf(x):
+                return jnp.exp(params)
+
         else:
-            def transf(x): return params
+
+            def transf(x):
+                return params
+
         return transf(params)
 
 
@@ -52,13 +64,26 @@ class Kernel(ABC):
 class RBF(Kernel):
     num_cov_params = 2
 
-    def __init__(self):
+    def __init__(self, amplitude=1.0, lengthscale=1.0):
         super().__init__()
+        self.params = {
+            "amplitude": amplitude,
+            "lengthscale": lengthscale,
+        }
+        self.is_fitted = False
 
     def kernel_vectorized(self, x1, x2):
         return jnp.exp(-0.5 * jnp.sum((x1 - x2) ** 2))
 
-    def __call__(self, params, x1, x2=None, log_params=True):
+    def __call__(self, x1, params=None, x2=None, log_params=True):
+
+        if params is None:
+            params = jnp.array(
+                [
+                    self.params["amplitude"],
+                    self.params["lengthscale"],
+                ]
+            )
 
         self.check_params(params)
         params = self.transform_params(params, log_params)
@@ -71,6 +96,12 @@ class RBF(Kernel):
         cov = output_scale * self.cov_map(self.kernel_vectorized, x1, x2)
         return cov
 
+    def store_params(self, params):
+        self.params = {
+            "amplitude": params[0],
+            "lengthscale": params[1],
+        }
+
 
 ##############################
 ######## Matern 1/2 ##########
@@ -78,8 +109,13 @@ class RBF(Kernel):
 class Matern12(Kernel):
     num_cov_params = 2
 
-    def __init__(self):
+    def __init__(self, amplitude=1.0, lengthscale=1.0):
         super().__init__()
+        self.params = {
+            "amplitude": amplitude,
+            "lengthscale": lengthscale,
+        }
+        self.is_fitted = False
 
     def kernel_vectorized(self, x1, x2, lengthscale):
         return jnp.exp(-0.5 * jnp.sqrt(jnp.sum((x1 - x2) ** 2)) / lengthscale)
@@ -93,15 +129,21 @@ class Matern12(Kernel):
     ):
         if xs2 is None:
             return vmap(
-                lambda x: vmap(lambda y: cov_func(
-                    x, y, lengthscale=lengthscale))(xs)
+                lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
             )(xs)
         return vmap(
-            lambda x: vmap(lambda y: cov_func(
-                x, y, lengthscale=lengthscale))(xs)
+            lambda x: vmap(lambda y: cov_func(x, y, lengthscale=lengthscale))(xs)
         )(xs2).T
 
-    def __call__(self, params, x1, x2=None, log_params=True):
+    def __call__(self, x1, params=None, x2=None, log_params=True):
+
+        if params is None:
+            params = jnp.array(
+                [
+                    self.params["amplitude"],
+                    self.params["lengthscale"],
+                ]
+            )
 
         self.check_params(params)
         params = self.transform_params(params, log_params)
@@ -113,6 +155,12 @@ class Matern12(Kernel):
         )
         return cov.squeeze()
 
+    def store_params(self, params):
+        self.params = {
+            "amplitude": params[0],
+            "lengthscale": params[1],
+        }
+
 
 ##############################
 ###### Multi-group RBF #######
@@ -120,8 +168,14 @@ class Matern12(Kernel):
 class MultiGroupRBF(Kernel):
     num_cov_params = 3
 
-    def __init__(self):
+    def __init__(self, amplitude=1.0, group_diff_param=1.0, lengthscale=1.0):
         super().__init__()
+        self.params = {
+            "amplitude": amplitude,
+            "group_diff_param": group_diff_param,
+            "lengthscale": lengthscale,
+        }
+        self.is_fitted = False
 
     def kernel_vectorized(
         self, x1, x2, group_embeddings1, group_embeddings2, group_diff_param
@@ -150,22 +204,29 @@ class MultiGroupRBF(Kernel):
             return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs)
         return vmap(
             lambda x, g1: vmap(
-                lambda y, g2: cov_func(
-                    x, y, g1, g2, group_diff_param=group_diff_param
-                )
+                lambda y, g2: cov_func(x, y, g1, g2, group_diff_param=group_diff_param)
             )(xs, group_embeddings1)
         )(xs2, group_embeddings2).T
 
     def __call__(
         self,
-        params,
         x1,
         groups1,
+        params=None,
         group_distances=None,
         x2=None,
         groups2=None,
         log_params=True,
     ):
+
+        if params is None:
+            params = jnp.array(
+                [
+                    self.params["amplitude"],
+                    self.params["group_diff_param"],
+                    self.params["lengthscale"],
+                ]
+            )
 
         self.check_params(params)
         params = self.transform_params(params, log_params)
@@ -178,9 +239,7 @@ class MultiGroupRBF(Kernel):
             group_distances = onp.ones(n_groups) - onp.eye(n_groups)
 
         if not isinstance(groups1.flat[0], onp.integer):
-            warnings.warn(
-                "Casting group labels to integers. Make sure your group labels are ints to avoid undue casting!"
-            )
+            warnings.warn(CASTING_WARNING)
             groups1 = groups1.astype(int)
             if groups2 is not None:
                 groups2 = groups2.astype(int)
@@ -209,6 +268,13 @@ class MultiGroupRBF(Kernel):
         )
         return output_scale * cov.squeeze()
 
+    def store_params(self, params):
+        self.params = {
+            "amplitude": params[0],
+            "group_diff_param": params[1],
+            "lengthscale": params[2],
+        }
+
 
 ##############################
 ### Multi-group Matern 1/2 ###
@@ -216,8 +282,17 @@ class MultiGroupRBF(Kernel):
 class MultiGroupMatern12(Kernel):
     num_cov_params = 4
 
-    def __init__(self):
+    def __init__(
+        self, amplitude=1.0, group_diff_param=1.0, lengthscale=1.0, dependency_scale=1.0
+    ):
         super().__init__()
+        self.params = {
+            "amplitude": amplitude,
+            "group_diff_param": group_diff_param,
+            "lengthscale": lengthscale,
+            "dependency_scale": dependency_scale,
+        }
+        self.is_fitted = False
 
     def kernel_vectorized(
         self,
@@ -280,14 +355,25 @@ class MultiGroupMatern12(Kernel):
 
     def __call__(
         self,
-        params,
         x1,
         groups1,
+        params=None,
         group_distances=None,
         x2=None,
         groups2=None,
         log_params=True,
     ):
+
+        if params is None:
+            params = jnp.array(
+                [
+                    self.params["amplitude"],
+                    self.params["group_diff_param"],
+                    self.params["lengthscale"],
+                    self.params["dependency_scale"],
+                ]
+            )
+
         self.check_params(params)
         params = self.transform_params(params, log_params)
         output_scale = params[0]
@@ -300,9 +386,7 @@ class MultiGroupMatern12(Kernel):
             group_distances = onp.ones(n_groups) - onp.eye(n_groups)
 
         if not isinstance(groups1.flat[0], onp.integer):
-            warnings.warn(
-                "Casting group labels to integers. Make sure your group labels are ints to avoid undue casting!"
-            )
+            warnings.warn(CASTING_WARNING)
             groups1 = groups1.astype(int)
             if groups2 is not None:
                 groups2 = groups2.astype(int)
@@ -330,6 +414,14 @@ class MultiGroupMatern12(Kernel):
             dependency_scale=dependency_scale,
         )
         return output_scale * cov.squeeze()
+
+    def store_params(self, params):
+        self.params = {
+            "amplitude": params[0],
+            "a": params[1],
+            "lengthscale": params[2],
+            "dependency_scale": params[3],
+        }
 
 
 if __name__ == "__main__":
