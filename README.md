@@ -7,7 +7,7 @@ The multigroupGP package is primarily written using [JAX](https://github.com/goo
 
 ## Installation
 
-The MGGP Python package can be installed with `pip`:
+The Python package can be installed with `pip`:
 
 `pip install multigroupGP`
 
