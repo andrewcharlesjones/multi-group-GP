@@ -14,12 +14,7 @@ from autograd import value_and_grad
 from sklearn.gaussian_process import GaussianProcessRegressor
 from tqdm import tqdm
 
-
-sys.path.append("../models")
-from gaussian_process import make_gp_funs, mg_rbf_covariance, rbf_covariance
-
-sys.path.append("../kernels")
-from mgRBF import mgRBF
+from multigroupGP import GP, MultiGroupRBF, RBF
 
 import matplotlib
 

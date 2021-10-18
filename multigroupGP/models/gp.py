@@ -51,12 +51,33 @@ def make_gp_funs(
     cov_func, num_cov_params, is_hgp=False, is_mggp=False, n_noise_terms=1
 ):
     def unpack_kernel_params(params):
+        """Splits list of parameters into mean, noise variance, and kernel parameters.
+
+        Args:
+            params (iterable): List/array of model and kernel parameters.
+
+        Returns:
+            triple: mean (scalar), kernel parameters (array), and noise scale.
+        """
         mean = params[0]
         noise_scale = jnp.exp(params[1 : n_noise_terms + 1]) + 0.0001
         cov_params = jnp.array(params[n_noise_terms + 1 :])
         return mean, cov_params, noise_scale
 
     def predict(params, x, y, xstar, return_cov=False, **kwargs):
+        """Prediction function for the (MG)GP
+
+        Args:
+            params (iterable): List/array of kernel parameters.
+            x (array): n x p array of training data.
+            y (array): n-vector of training responses.
+            xstar (array): m x p array of testing data.
+            return_cov (bool, optional): Whether to return the covariance of the predictive distribution.
+            **kwargs: groups and group distances (for MGGP)
+
+        Returns:
+            TYPE: Predictive mean or (predictive mean, predictive covariance)
+        """
         mean, cov_params, noise_scales = unpack_kernel_params(params)
 
         if is_hgp:
@@ -163,6 +184,7 @@ class GP:
         is_hgp=False,
         within_group_kernel=None,
         key=random.PRNGKey(0),
+        group_specific_noise_terms=False,
     ):
 
         self.key = key
@@ -171,32 +193,32 @@ class GP:
 
         self.is_mggp = is_mggp
         self.is_hgp = is_hgp
+        self.group_specific_noise_terms = group_specific_noise_terms
 
-        if self.is_hgp:
-            if within_group_kernel is None:
-                raise ValueError("Must specify within-group kernel function for HGP.")
-            self.kernel = lambda kernel_params, x1, x2, groups1, groups2: hgp_kernel(
-                kernel_params=kernel_params,
-                x1=x1,
-                x2=x2,
-                groups1=groups1,
-                groups2=-groups2,
-                within_group_kernel=within_group_kernel,
-                between_group_kernel=kernel,
-            )
+        # if self.is_hgp:
+        #     if within_group_kernel is None:
+        #         raise ValueError("Must specify within-group kernel function for HGP.")
+        #     self.kernel = lambda kernel_params, x1, x2, groups1, groups2: hgp_kernel(
+        #         kernel_params=kernel_params,
+        #         x1=x1,
+        #         x2=x2,
+        #         groups1=groups1,
+        #         groups2=-groups2,
+        #         within_group_kernel=within_group_kernel,
+        #         between_group_kernel=kernel,
+        #     )
+        # else:
+        #     self.kernel = kernel
+        self.kernel = kernel
+
+        if self.is_mggp:
+            if self.group_specific_noise_terms:
+                n_groups = len(onp.unique(groups))
+                self.n_noise_terms = n_groups
+            else:
+                self.n_noise_terms = 1
         else:
-            self.kernel = kernel
-
-    def callback(self, params):
-        pass
-
-    def set_up_objective(
-        self, X, y, groups=None, group_distances=None, n_noise_terms=1
-    ):
-        self.X = X
-        self.y = y
-        self.groups = groups
-        self.group_distances = group_distances
+            self.n_noise_terms = 1
 
         # Build model
         (
@@ -209,12 +231,41 @@ class GP:
             num_cov_params=self.kernel.num_cov_params,
             is_mggp=self.is_mggp,
             is_hgp=self.is_hgp,
-            n_noise_terms=n_noise_terms,
+            n_noise_terms=self.n_noise_terms,
         )
 
         self.num_params = num_params
         self.predict_fn = predict
         self.log_marginal_likelihood = log_marginal_likelihood
+
+    def callback(self, params):
+        pass
+
+    def set_up_objective(
+        self, X, y, groups=None, group_distances=None, n_noise_terms=1
+    ):
+        self.X = X
+        self.y = y
+        self.groups = groups
+        self.group_distances = group_distances
+
+        # # Build model
+        # (
+        #     num_params,
+        #     predict,
+        #     log_marginal_likelihood,
+        #     unpack_kernel_params,
+        # ) = make_gp_funs(
+        #     self.kernel,
+        #     num_cov_params=self.kernel.num_cov_params,
+        #     is_mggp=self.is_mggp,
+        #     is_hgp=self.is_hgp,
+        #     n_noise_terms=n_noise_terms,
+        # )
+
+        # self.num_params = num_params
+        # self.predict_fn = predict
+        # self.log_marginal_likelihood = log_marginal_likelihood
 
         self.objective = lambda params: -self.log_marginal_likelihood(
             params,
@@ -284,21 +335,12 @@ class GP:
             if not onp.all(onp.diag(group_distances) == 0):
                 raise ValueError("Distance from a group to itself cannot be nonzero.")
 
-            if group_specific_noise_terms:
-                n_groups = len(onp.unique(groups))
-                n_noise_terms = n_groups
-            else:
-                n_noise_terms = 1
-
-        else:
-            n_noise_terms = 1
-
         self.set_up_objective(
             X,
             y,
             groups=groups,
             group_distances=group_distances,
-            n_noise_terms=n_noise_terms,
+            n_noise_terms=self.n_noise_terms,
         )
         self.maximize_LL(
             tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps

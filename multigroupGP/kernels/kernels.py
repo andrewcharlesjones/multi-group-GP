@@ -96,11 +96,14 @@ class RBF(Kernel):
         cov = output_scale * self.cov_map(self.kernel_vectorized, x1, x2)
         return cov
 
-    def store_params(self, params):
-        self.params = {
+    def create_param_dict(self, params):
+        return {
             "amplitude": params[0],
             "lengthscale": params[1],
         }
+
+    def store_params(self, params):
+        self.params = self.create_param_dict(params)
 
 
 ##############################
@@ -155,11 +158,77 @@ class Matern12(Kernel):
         )
         return cov.squeeze()
 
-    def store_params(self, params):
-        self.params = {
+    def create_param_dict(self, params):
+        return {
             "amplitude": params[0],
             "lengthscale": params[1],
         }
+
+    def store_params(self, params):
+        self.params = create_param_dict(params)
+
+
+##############################
+#### Hierarchical kernel #####
+##############################
+class HGPKernel(Kernel):
+    num_cov_params = None
+
+    def __init__(self, within_group_kernel, between_group_kernel):
+        super().__init__()
+        self.within_group_kernel = within_group_kernel
+        self.between_group_kernel = between_group_kernel
+        self.num_cov_params = (
+            within_group_kernel.num_cov_params + between_group_kernel.num_cov_params
+        )
+        self.params = {
+            "within_group": within_group_kernel.params,
+            "between_group": between_group_kernel.params,
+        }
+        self.is_fitted = False
+
+    def __call__(
+        self, x1, groups1, params=None, x2=None, groups2=None, log_params=True
+    ):
+
+        if params is None:
+            within_group_params = None
+            between_group_params = None
+        else:
+            within_group_params = params[: self.within_group_kernel.num_cov_params]
+            between_group_params = params[self.within_group_kernel.num_cov_params :]
+
+        cov_within = self.within_group_kernel(
+            x1, params=within_group_params, x2=x2, log_params=log_params
+        )
+        cov_between = self.between_group_kernel(
+            x1, params=between_group_params, x2=x2, log_params=log_params
+        )
+
+        if x2 is None and groups2 is None:
+            groups2 = groups1
+
+        same_group_mask = (
+            onp.expand_dims(groups1, 1) == onp.expand_dims(groups2, 0)
+        ).astype(int)
+
+        cov = cov_between + same_group_mask * cov_within
+        return cov
+
+    def store_params(self, params):
+        within_group_params = params[: self.within_group_kernel.num_cov_params]
+        between_group_params = params[self.within_group_kernel.num_cov_params :]
+        self.params = {
+            "within_group": self.within_group_kernel.create_param_dict(
+                within_group_params
+            ),
+            "between_group": self.between_group_kernel.create_param_dict(
+                between_group_params
+            ),
+        }
+
+    def kernel_vectorized(self):
+        pass
 
 
 ##############################

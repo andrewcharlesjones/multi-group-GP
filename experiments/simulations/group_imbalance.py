@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
+from multigroupGP import GP, MultiGroupRBF, RBF, HGPKernel
 
 import matplotlib
 
@@ -51,8 +51,8 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
 
     kernel_params = [np.log(1.0)] * 3
     kernel_params[1] = np.log(a_true)
-    kernel = lambda X1, X2, groups1, groups2: multigroup_rbf_kernel(
-        kernel_params=kernel_params,
+    mggp_kernel = MultiGroupRBF(amplitude=1.0, group_diff_param=1.0, lengthscale=1.0)
+    kernel = lambda X1, X2, groups1, groups2: mggp_kernel(
         x1=X1,
         x2=X2,
         groups1=groups1,
@@ -107,7 +107,7 @@ def experiment():
             ######### Fit MGGP #########
             ############################
 
-            mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+            mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
             mggp.fit(X_train, Y_train, X_groups_train, group_dist_mat)
             preds_mean = mggp.predict(X_test, X_groups_test)
 
@@ -126,7 +126,7 @@ def experiment():
                 curr_X_test = X_test[X_groups_test == groupnum]
                 curr_Y_test = Y_test[X_groups_test == groupnum]
 
-                sep_gp = GP(kernel=rbf_kernel)
+                sep_gp = GP(kernel=RBF())
                 sep_gp.fit(curr_X_train, curr_Y_train)
                 preds_mean = sep_gp.predict(curr_X_test)
                 curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
@@ -141,7 +141,7 @@ def experiment():
             ####### Fit union GP #######
             ############################
 
-            union_gp = GP(kernel=rbf_kernel)
+            union_gp = GP(kernel=RBF())
             union_gp.fit(X_train, Y_train)
             preds_mean = union_gp.predict(X_test)
             # curr_error = np.mean((Y_test - preds_mean) ** 2)
@@ -151,7 +151,10 @@ def experiment():
             ############################
             ######### Fit HGP ##########
             ############################
-            hgp = GP(within_group_kernel=rbf_kernel, kernel=rbf_kernel, is_hgp=True)
+            hgp_kernel = HGPKernel(
+                within_group_kernel=RBF(), between_group_kernel=RBF()
+            )
+            hgp = GP(kernel=hgp_kernel, is_hgp=True)
             hgp.fit(X_train, Y_train, X_groups_train)
             preds_mean = hgp.predict(X_test, X_groups_test)
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)

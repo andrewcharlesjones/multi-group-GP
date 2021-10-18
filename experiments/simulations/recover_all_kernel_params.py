@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import sys
-from sklearn.gaussian_process.kernels import RBF
+from sklearn.gaussian_process.kernels import RBF as RBF_sklearn
 from scipy.optimize import minimize
 from autograd import value_and_grad
 from tqdm import tqdm
 
-from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
+from multigroupGP import GP, MultiGroupRBF, RBF
 
 import matplotlib
 
@@ -41,7 +41,7 @@ def separated_gp():
         ## Generate data
         X0 = np.random.uniform(low=-10, high=10, size=(n0, p))
         X1 = np.random.uniform(low=-10, high=10, size=(n1, p))
-        kernel = RBF()
+        kernel = RBF_sklearn()
         K_X0X0 = kernel(X0, X0)
         K_X1X1 = kernel(X1, X1)
         Y0 = mvnpy.rvs(np.zeros(n0), K_X0X0) + np.random.normal(
@@ -60,7 +60,7 @@ def separated_gp():
         ######### Fit MGGP #########
         ############################
         X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
-        mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+        mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
 
         curr_group_dists = np.ones((n_groups, n_groups))
         np.fill_diagonal(curr_group_dists, 0)
@@ -72,7 +72,6 @@ def separated_gp():
             verbose=False,
             group_specific_noise_terms=True,
         )
-        # assert len(mggp.params) == n_params + 2
         noise_variances = np.exp(mggp.params[1:3])
         output_scale = np.exp(mggp.params[3])
         curr_a = np.exp(mggp.params[4])
@@ -100,7 +99,7 @@ def union_gp():
 
         ## Generate data
         X = np.random.uniform(low=-10, high=10, size=(n0 + n1, p))
-        kernel = RBF()
+        kernel = RBF_sklearn()
         K_XX = kernel(X, X)
         Y = mvnpy.rvs(np.zeros(n0 + n1), K_XX) + np.random.normal(
             scale=noise_scale_true, size=n0 + n1
@@ -110,7 +109,7 @@ def union_gp():
         ######### Fit MGGP #########
         ############################
         X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
-        mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+        mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
 
         curr_group_dists = np.ones((n_groups, n_groups))
         np.fill_diagonal(curr_group_dists, 0)

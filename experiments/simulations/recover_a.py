@@ -11,12 +11,7 @@ from scipy.optimize import minimize
 from sklearn.gaussian_process import GaussianProcessRegressor
 from tqdm import tqdm
 
-
-# sys.path.append("../../models")
-# sys.path.append("../../kernels")
-# from gaussian_process import GP, HGP, MGGP
-# from kernels import multigroup_rbf_covariance, rbf_covariance
-from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
+from multigroupGP import GP, RBF, MultiGroupRBF
 
 import matplotlib
 
@@ -66,25 +61,18 @@ def recover_alpha_experiment():
             ]
             true_group_dists = np.ones((2, 2))
             np.fill_diagonal(true_group_dists, 0)
-            K_XX = multigroup_rbf_kernel(
-                kernel_params=true_kernel_params, x1=X, groups1=X_groups, group_distances=true_group_dists
+            K_XX = MultiGroupRBF(amplitude=output_scale_true, group_diff_param=alpha_true, lengthscale=length_scale_true)(
+                x1=X, groups1=X_groups, group_distances=true_group_dists, log_params=False
             ) + noise_scale_true**2 * np.eye(n0 + n1)
             Y = mvn.rvs(np.zeros(n0 + n1), K_XX)
 
             ############################
             ######### Fit MGGP #########
             ############################
-            X0_group_one_hot = np.zeros(n_groups)
-            X0_group_one_hot[0] = 1
-            X0_groups = np.repeat([X0_group_one_hot], n0, axis=0)
-            X1_group_one_hot = np.zeros(n_groups)
-            X1_group_one_hot[1] = 1
-            X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
-            X_groups = np.concatenate([X0_groups, X1_groups], axis=0).astype(int)
-            mggp = GP(kernel=multigroup_rbf_kernel, is_mggp=True)
+            X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
+            mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
 
-            curr_group_dists = np.ones((n_groups, n_groups))
-            np.fill_diagonal(curr_group_dists, 0)
+            curr_group_dists = np.ones((n_groups, n_groups)) - np.eye(n_groups)
             mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
             assert len(mggp.params) == n_params + 2
             output_scale = np.exp(mggp.params[2])
