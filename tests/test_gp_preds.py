@@ -40,7 +40,7 @@ def test_Matern12_predictions():
     n = 50
     X = jnp.linspace(-5, 5, n)[:, None]
     kernel_true = Matern12(amplitude=1.0, lengthscale=1.0)
-    K_XX = kernel_true(x1=X) + noise_variance * jnp.eye(n)
+    K_XX = kernel_true(x1=X, log_params=False) + noise_variance * jnp.eye(n)
 
     for _ in range(10):
 
@@ -75,6 +75,7 @@ def test_MGRBF_predictions():
             x1=X,
             groups1=X_groups,
             group_distances=group_dist_mat,
+            log_params=False,
         )
         + noise_variance * jnp.eye(n)
     )
@@ -122,6 +123,7 @@ def test_MGMatern12_predictions():
             x1=X,
             groups1=X_groups,
             group_distances=group_dist_mat,
+            log_params=False,
         )
         + noise_variance * jnp.eye(n)
     )

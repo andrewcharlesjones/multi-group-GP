@@ -165,7 +165,7 @@ class Matern12(Kernel):
         }
 
     def store_params(self, params):
-        self.params = create_param_dict(params)
+        self.params = self.create_param_dict(params)
 
 
 ##############################
