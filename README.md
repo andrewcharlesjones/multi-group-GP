@@ -1,7 +1,9 @@
-# Multi-group Gaussian process (MGGP)
+# [Multi-group Gaussian process (MGGP)](https://arxiv.org/abs/2110.08411)
 ![Build Status](https://github.com/andrewcharlesjones/multi-group-GP/actions/workflows/main.yml/badge.svg)
 
 The multi-group Gaussian process (MGGP) is a generalization of a traditional GP to the setting in which observations are partitioned into a set of known subgroups.
+
+The preprint can be found here: https://arxiv.org/abs/2110.08411.
 
 The multigroupGP package is primarily written using [JAX](https://github.com/google/jax).
 
