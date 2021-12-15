@@ -56,14 +56,23 @@ def recover_alpha_experiment():
 
             true_kernel_params = [
                 np.log(output_scale_true),  # output variance
-                np.log(alpha_true),         # a
+                np.log(alpha_true),  # a
                 np.log(length_scale_true),  # length scale
             ]
             true_group_dists = np.ones((2, 2))
             np.fill_diagonal(true_group_dists, 0)
-            K_XX = MultiGroupRBF(amplitude=output_scale_true, group_diff_param=alpha_true, lengthscale=length_scale_true)(
-                x1=X, groups1=X_groups, group_distances=true_group_dists, log_params=False
-            ) + noise_scale_true**2 * np.eye(n0 + n1)
+            K_XX = MultiGroupRBF(
+                amplitude=output_scale_true,
+                group_diff_param=alpha_true,
+                lengthscale=length_scale_true,
+            )(
+                x1=X,
+                groups1=X_groups,
+                group_distances=true_group_dists,
+                log_params=False,
+            ) + noise_scale_true ** 2 * np.eye(
+                n0 + n1
+            )
             Y = mvn.rvs(np.zeros(n0 + n1), K_XX)
 
             ############################

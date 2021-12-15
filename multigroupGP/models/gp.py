@@ -137,8 +137,9 @@ def make_gp_funs(
         )
         pred_mean = mean + jnp.dot(cov_y_f.T, Kinv_y)
         if return_cov:
-            pred_cov = cov_f_f - jnp.dot(Kinv_Kyf.T, cov_y_f)
-            return pred_mean, preds_cov
+            Kinv_Kyf = scipy.linalg.solve_triangular(chol.T, scipy.linalg.solve_triangular(chol, cov_y_f, lower=True))
+            pred_cov = cov_f_f - jnp.dot(cov_y_f.T, Kinv_Kyf)
+            return pred_mean, pred_cov
         else:
             return pred_mean
 

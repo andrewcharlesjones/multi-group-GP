@@ -19,8 +19,8 @@ n_repeats = 5
 alpha_list = alpha_list = [np.power(10, x * 1.0) for x in np.arange(-5, 3)]
 noise_variance_true = 0.1
 n_groups = 2
-n0 = 100
-n1 = 100
+n0 = 20
+n1 = 20
 n = n0 + n1
 p = 1
 xlims = [-10, 10]
@@ -52,15 +52,33 @@ def MGGP_experiment():
     mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
 
     plt.figure(figsize=(10, 5))
-    plt.scatter(X, Y, color="black")
+    plt.scatter(X[:n0], Y[:n0], color="blue", label="Group 1", s=100)
+    plt.scatter(X[n0:], Y[n0:], color="red", label="Group 2", s=100)
 
     ntest = 200
     Xtest_onegroup = np.linspace(xlims[0], xlims[1], ntest)[:, None]
     Xtest = np.concatenate([Xtest_onegroup, Xtest_onegroup], axis=0)
     Xtest_groups = np.concatenate([np.zeros(ntest), np.ones(ntest)]).astype(int)
-    preds = mggp.predict(Xtest, groups_test=Xtest_groups)
+    preds, preds_cov = mggp.predict(Xtest, groups_test=Xtest_groups, return_cov=True)
+    preds_stddev_diag = np.sqrt(np.diagonal(preds_cov))
     plt.plot(Xtest[:ntest], preds[:ntest], color="blue")
     plt.plot(Xtest[ntest:], preds[ntest:], color="red")
+
+    plt.fill_between(
+        Xtest[:ntest].squeeze(),
+        preds[:ntest] - 2 * preds_stddev_diag[:ntest],
+        preds[:ntest] + 2 * preds_stddev_diag[:ntest],
+        color="blue",
+        alpha=0.3,
+    )
+    plt.fill_between(
+        Xtest[ntest:].squeeze(),
+        preds[ntest:] - 2 * preds_stddev_diag[ntest:],
+        preds[ntest:] + 2 * preds_stddev_diag[ntest:],
+        color="red",
+        alpha=0.3,
+    )
+    plt.legend()
     plt.show()
     import ipdb
 

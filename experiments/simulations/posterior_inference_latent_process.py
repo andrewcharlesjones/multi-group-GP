@@ -22,14 +22,14 @@ font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-N_MCMC_ITER = 200
-N_WARMUP_ITER = 200
+N_MCMC_ITER = 20
+N_WARMUP_ITER = 20
 N_CHAINS = 4
 
 frac_train = 0.75
-n0, n1 = 20, 20
+n0, n1 = 10, 10
 ntotal = n0 + n1
-noise_variance = 0.05
+noise_variance = 0.1
 p = 1
 n_groups = 2
 n_infinite = 80
@@ -45,20 +45,15 @@ groups_full = np.concatenate(
     [np.zeros(n_infinite // 2), np.ones(n_infinite // 2)]
 ).astype(int)
 
-X_full = np.concatenate(
-    [
-        np.expand_dims(np.linspace(-10, 10, n_infinite // 2), 1),
-        np.expand_dims(np.linspace(-10, 10, n_infinite // 2), 1),
-    ]
-)
-# X_full = X_full[
-#     np.random.choice(np.arange(n_infinite), size=n_infinite, replace=True), :
-# ]
+X_full = np.expand_dims(np.linspace(-5, 5, n_infinite), 1)
+X_full = X_full[
+    np.random.choice(np.arange(n_infinite), size=n_infinite, replace=True), :
+]
 
 sigma2_true = 1.0
-a_true = 0.7
+a_true = 1.0
 b_true = 1.0
-mean_intercepts = np.array([0, 0])
+mean_intercepts = np.array([1, 2])
 
 groups_dists = np.ones((2, 2))
 np.fill_diagonal(groups_dists, 0)
@@ -80,9 +75,7 @@ Y_full_noiseless_with_mean = Y_full_noiseless + Y_means
 Y_full = Y_full_noiseless_with_mean + np.random.normal(
     scale=np.sqrt(noise_variance), size=n_infinite
 )
-# plt.scatter(X_full[groups_full == 0], Y_full_noiseless[groups_full == 0])
-# plt.scatter(X_full[groups_full == 1], Y_full_noiseless[groups_full == 1])
-# plt.show()
+# import ipdb; ipdb.set_trace()
 
 group0_idx = np.random.choice(np.arange(n_infinite // 2), size=n0)
 group1_idx = np.random.choice(np.arange(n_infinite // 2, n_infinite), size=n1)
@@ -137,14 +130,12 @@ plt.figure(figsize=(12, 5))
 plt.scatter(
     Xtrain[groups_train == 0],
     Ytrain[groups_train == 0],
-    color="blue",
-    s=150,
+    color="blue",  # , label="Group 1"
 )
 plt.scatter(
     Xtrain[groups_train == 1],
     Ytrain[groups_train == 1],
-    color="red",
-    s=150,
+    color="red",  # , label="Group 2"
 )
 
 Ytest_samples = fit["y2"]
@@ -155,6 +146,30 @@ Ftest_samples = fit["f"][ntrain:, :]
 colors = ["blue", "red"]
 for groupnum in [0, 1]:
     curr_idx = np.where(groups_test == groupnum)[0]
+
+    ## Plot F
+    curr_Ftest_samples = Ftest_samples[curr_idx, :]
+    curr_Xtest = Xtest[curr_idx, :]
+    preds_mean = curr_Ftest_samples.mean(1)
+    preds_stddev = curr_Ftest_samples.std(1)
+    preds_upper = preds_mean + 2 * preds_stddev
+    preds_lower = preds_mean - 2 * preds_stddev
+    sorted_idx = np.argsort(curr_Xtest.squeeze())
+    plt.plot(
+        curr_Xtest.squeeze()[sorted_idx],
+        preds_mean[sorted_idx],
+        c=colors[groupnum],
+        alpha=0.5,
+        label=r"$F(x; c_" + str(groupnum + 1) + ")$",
+        linestyle="-",
+    )
+    plt.fill_between(
+        curr_Xtest.squeeze()[sorted_idx],
+        preds_lower[sorted_idx],
+        preds_upper[sorted_idx],
+        alpha=0.3,
+        color=colors[groupnum],
+    )
 
     ## Plot Y
     curr_Ytest_samples = Ytest_samples[curr_idx, :]
@@ -170,14 +185,13 @@ for groupnum in [0, 1]:
         c=colors[groupnum],
         alpha=0.5,
         label=r"$Y(x; c_" + str(groupnum + 1) + ")$",
-        linestyle="-",
-        linewidth=7,
+        linestyle="--",
     )
     plt.fill_between(
         curr_Xtest.squeeze()[sorted_idx],
         preds_lower[sorted_idx],
         preds_upper[sorted_idx],
-        alpha=0.2,
+        alpha=0.3,
         color=colors[groupnum],
     )
 
@@ -185,9 +199,53 @@ for groupnum in [0, 1]:
 plt.legend(bbox_to_anchor=(1.1, 1.05))
 plt.tight_layout()
 plt.savefig("../../plots/mggp_predictive_samples.png")
-plt.show()
+# plt.show()
 plt.close()
 
+samples_df = pd.DataFrame(
+    {
+        r"$a$": fit["alpha"].squeeze(),
+        r"$b$": fit["lengthscale"].squeeze(),
+        r"$\sigma^2$": fit["outputvariance"].squeeze(),
+        r"$\beta_1$": fit["beta"][0, :].squeeze(),
+        r"$\beta_2$": fit["beta"][1, :].squeeze(),
+        r"$\tau^2$": fit["sigma"].squeeze() ** 2,
+    }
+)
+samples_df_melted = pd.melt(samples_df)
+truth_df = pd.DataFrame(
+    {
+        r"$a$": [a_true],
+        r"$b$": [b_true],
+        r"$\sigma^2$": [sigma2_true],
+        r"$\beta_1$": [mean_intercepts[0]],
+        r"$\beta_2$": [mean_intercepts[1]],
+        r"$\tau^2$": noise_variance,
+    }
+)
+truth_df_melted = pd.melt(truth_df)
+plt.figure(figsize=(7, 5))
+sns.boxplot(data=samples_df_melted, y="variable", x="value", orient="h", color="gray")
+sns.pointplot(
+    data=truth_df_melted,
+    y="variable",
+    x="value",
+    join=False,
+    orient="h",
+    marker="x",
+    color="red",
+)
+plt.ylabel("")
+plt.xlabel("Samples")
+plt.tight_layout()
+plt.savefig("../../plots/mggp_hyperparameter_samples.png")
+plt.close()
+
+az.plot_autocorr(fit, var_names=["lengthscale", "outputvariance", "alpha"])
+plt.tight_layout()
+plt.savefig("../../plots/mggp_autocorrelation.png")
+# plt.show()
+plt.close()
 
 import ipdb
 
