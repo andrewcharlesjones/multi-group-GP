@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import numpy as onp
-from multigroupGP import GP, RBF, Matern12, MultiGroupRBF, MultiGroupMatern12
+from multigroupGP import RBF, Matern12, MultiGroupRBF, MultiGroupMatern12
 
 
 def test_sole_input():
