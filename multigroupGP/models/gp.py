@@ -8,7 +8,7 @@ from jax.config import config
 import jax.numpy as jnp
 import jax.random as random
 import jax.scipy as scipy
-from jax.experimental import optimizers
+from jax.example_libraries import optimizers
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal as mvn
 from scipy.optimize import minimize
@@ -279,13 +279,13 @@ class GP:
         # Initialize covariance parameters
         self.init_params = 0.1 * random.normal(self.key, shape=(self.num_params,))
 
-    def maximize_LL(self, tol, verbose, print_every, max_steps):
+    def maximize_LL(self, tol, verbose, print_every, max_steps, learning_rate):
 
         params = 0.1 * onp.random.normal(size=(self.num_params))
 
         # initialize optimizer
-        lr = 0.01  # Learning rate
-        opt_init, opt_update, get_params = optimizers.adam(step_size=lr)
+        # lr = 0.01  # Learning rate
+        opt_init, opt_update, get_params = optimizers.adam(step_size=learning_rate)
         opt_state = opt_init(params)
 
         @jit
@@ -328,6 +328,7 @@ class GP:
         print_every=100,
         max_steps=1e5,
         group_specific_noise_terms=False,
+        learning_rate=1e-2,
     ):
         if self.is_mggp:
             if group_distances is None:
@@ -344,7 +345,7 @@ class GP:
             n_noise_terms=self.n_noise_terms,
         )
         self.maximize_LL(
-            tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps
+            tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps, learning_rate=learning_rate
         )
 
     def predict(self, X_test, groups_test=None, return_cov=False):
@@ -360,3 +361,25 @@ class GP:
             return_cov=return_cov,
         )
         return preds
+
+if __name__ == "__main__":
+    import jax.numpy as jnp
+    import numpy as onp
+    import jax.random as random
+    import matplotlib.pyplot as plt
+    from multigroupGP import GP, RBF
+    from sklearn.gaussian_process.kernels import RBF as RBF_sklearn
+    from scipy.stats import multivariate_normal as mvn
+
+    key = random.PRNGKey(1)
+    n = 1000
+    noise_variance = 0.01
+    X = onp.linspace(-5, 5, n).reshape(-1, 1)
+    K_XX = RBF_sklearn()(X, X)
+    y = mvn.rvs(mean=onp.zeros(n), cov=K_XX + 1e-8 * onp.eye(n))
+    y += onp.random.normal(scale=onp.sqrt(noise_variance), size=y.shape[0])
+
+    kernel = RBF()
+    gp = GP(kernel=kernel, key=key)
+    gp.fit(X, y)
+    # preds_mean = gp.predict(Xtest)

@@ -14,6 +14,6 @@ __pycache__/
 cached_models/
 cached_stan_models/
 experiments/simulations/build/
-experiments/gtex/
+# experiments/gtex/
 
 **/.DS_Store
