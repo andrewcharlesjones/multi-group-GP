@@ -13,5 +13,5 @@ def embed_distance_matrix(distance_matrix):
     C = jnp.eye(n_groups) - 1 / n_groups * jnp.ones((n_groups, n_groups))
     B = -0.5 * C @ D2 @ C
     eigvals, E = jnp.linalg.eigh(B)
-    embedding = E @ jnp.diag(jnp.sqrt(eigvals + 1e-10))
+    embedding = E @ jnp.diag(jnp.sqrt(eigvals + 1e-6))
     return embedding
