@@ -332,7 +332,7 @@ class GP:
     ):
         if self.is_mggp:
             if group_distances is None:
-                group_distances = onp.eye(len(onp.unique(groups)))
+                group_distances = 1 - onp.eye(len(onp.unique(groups)))
                 onp.fill_diagonal(group_distances, 0)
             if not onp.all(onp.diag(group_distances) == 0):
                 raise ValueError("Distance from a group to itself cannot be nonzero.")

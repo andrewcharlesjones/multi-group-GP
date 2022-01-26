@@ -304,16 +304,17 @@ class MultiGroupRBF(Kernel):
         lengthscale = params[2]
 
         if group_distances is None:
-            n_groups = len(onp.unique(groups1))
-            group_distances = onp.ones(n_groups) - onp.eye(n_groups)
+            n_groups = len(jnp.unique(groups1))
+            group_distances = jnp.ones(n_groups) - jnp.eye(n_groups)
 
-        if not isinstance(groups1.flat[0], onp.integer):
+        # if not isinstance(groups1.flat[0], jnp.integer):
+        if not issubclass(groups1.dtype.type, jnp.integer):
             warnings.warn(CASTING_WARNING)
             groups1 = groups1.astype(int)
             if groups2 is not None:
                 groups2 = groups2.astype(int)
 
-        assert onp.all(onp.diag(group_distances) == 0)
+        # assert jnp.all(jnp.diag(group_distances) == 0)
 
         # Embed group distance matrix in Euclidean space for convenience.
         embedding = embed_distance_matrix(group_distances)
