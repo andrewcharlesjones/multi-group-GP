@@ -8,7 +8,7 @@ import os
 from tqdm import tqdm
 
 
-DATA_DIR = "/Users/andrewjones/Documents/beehive/rrr/PRRR/data"
+DATA_DIR = "/Users/andrewjones/Documents/beehive/rrr/PRRR/data/gtex"
 SAVE_DIR = "../../data/gtex"
 # DATA_FILE1 = "gtex_expression_Artery - Tibial.csv"
 # DATA_FILE2 = "gtex_expression_Artery - Coronary.csv"
@@ -94,6 +94,7 @@ for ii in tqdm(range(len(DATA_FILES))):
     data_high_variance = data[high_variance_genes]
 
     ## Get subject ID and drop duplicate subjects
+    import ipdb; ipdb.set_trace()
     data_high_variance["SUBJID"] = (
         data_high_variance.index.str.split("-").str[:2].str.join("-")
     )
@@ -112,6 +113,7 @@ for ii in tqdm(range(len(DATA_FILES))):
 
     assert data_high_variance.shape[1] == N_GENES
     assert np.array_equal(data_high_variance.columns.values, high_variance_genes)
+    
 
     data_high_variance.to_csv(curr_gene_exp_fname)
     metadata_IT_data.to_csv(

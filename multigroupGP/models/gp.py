@@ -16,6 +16,7 @@ from sklearn.gaussian_process.kernels import RBF
 import numpy as onp
 import seaborn as sns
 import warnings
+import time
 
 
 def hgp_kernel(
@@ -78,7 +79,11 @@ def make_gp_funs(
         Returns:
             TYPE: Predictive mean or (predictive mean, predictive covariance)
         """
-        mean, cov_params, noise_scales = unpack_kernel_params(params)
+        mean, cov_params, noise_scales = unpack_kernel_params(params["params"])
+
+        if kwargs["dimension_reduction"]:
+            x = jnp.matmul(x, params["W"])
+            xstar = jnp.matmul(xstar, params["W"])
 
         if is_hgp:
             extra_args = {
@@ -145,7 +150,10 @@ def make_gp_funs(
 
     def log_marginal_likelihood(params, x, y, **kwargs):
 
-        mean, cov_params, noise_scales = unpack_kernel_params(params)
+        if kwargs["dimension_reduction"]:
+            x = jnp.matmul(x, params["W"])
+
+        mean, cov_params, noise_scales = unpack_kernel_params(params["params"])
         if is_hgp:
             extra_args = {"groups1": kwargs["groups"], "groups2": kwargs["groups"]}
         elif is_mggp:
@@ -186,6 +194,8 @@ class GP:
         within_group_kernel=None,
         key=random.PRNGKey(0),
         group_specific_noise_terms=False,
+        dimension_reduction=False,
+        reduced_dim=None,
     ):
 
         self.key = key
@@ -195,6 +205,8 @@ class GP:
         self.is_mggp = is_mggp
         self.is_hgp = is_hgp
         self.group_specific_noise_terms = group_specific_noise_terms
+        self.dimension_reduction = dimension_reduction
+        self.reduced_dim = reduced_dim
 
         # if self.is_hgp:
         #     if within_group_kernel is None:
@@ -247,6 +259,7 @@ class GP:
     ):
         self.X = X
         self.y = y
+        self.n, self.p = self.X.shape
         self.groups = groups
         self.group_distances = group_distances
 
@@ -274,6 +287,7 @@ class GP:
             self.y,
             groups=self.groups,
             group_distances=self.group_distances,
+            dimension_reduction=self.dimension_reduction,
         )
 
         # Initialize covariance parameters
@@ -281,7 +295,13 @@ class GP:
 
     def maximize_LL(self, tol, verbose, print_every, max_steps, learning_rate):
 
-        params = 0.1 * onp.random.normal(size=(self.num_params))
+        # params = 0.1 * onp.random.normal(size=(self.num_params))
+        if self.dimension_reduction:
+            params = {
+            "W": onp.random.normal(size=(self.p, self.reduced_dim)),
+            "params": 0.1 * onp.random.normal(size=(self.num_params))}
+        else:
+            params = {"params": 0.1 * onp.random.normal(size=(self.num_params))}
 
         # initialize optimizer
         # lr = 0.01  # Learning rate
@@ -294,7 +314,8 @@ class GP:
             opt_state = opt_update(step, grads, opt_state)
             return value, opt_state
 
-        last_mll = 1e5
+        last_mll = onp.inf
+        start = time.time()
         for step_num in range(int(max_steps)):
             curr_mll, opt_state = step(step_num, opt_state)
             if jnp.abs(last_mll - curr_mll) < tol:
@@ -306,10 +327,15 @@ class GP:
                         step_num, onp.round(-1 * onp.asarray(curr_mll), 2)
                     )
                 )
+        end = time.time()
+        self.fit_time = end - start
 
         fitted_params = get_params(opt_state)
-        cov_params = fitted_params[-self.kernel.num_cov_params :]
+        cov_params = fitted_params["params"][-self.kernel.num_cov_params :]
+        # self.params = fitted_params["params"]
         self.params = fitted_params
+        if self.dimension_reduction:
+            self.W = fitted_params["W"]
         self.kernel.store_params(jnp.exp(cov_params))
         self.kernel.is_fitted = True
 
@@ -359,6 +385,7 @@ class GP:
             xstar_groups=groups_test,
             group_distances=self.group_distances,
             return_cov=return_cov,
+            dimension_reduction=self.dimension_reduction,
         )
         return preds
 
@@ -367,12 +394,12 @@ if __name__ == "__main__":
     import numpy as onp
     import jax.random as random
     import matplotlib.pyplot as plt
-    from multigroupGP import GP, RBF
+    from multigroupGP import RBF
     from sklearn.gaussian_process.kernels import RBF as RBF_sklearn
     from scipy.stats import multivariate_normal as mvn
 
     key = random.PRNGKey(1)
-    n = 1000
+    n = 100
     noise_variance = 0.01
     X = onp.linspace(-5, 5, n).reshape(-1, 1)
     K_XX = RBF_sklearn()(X, X)
@@ -380,6 +407,7 @@ if __name__ == "__main__":
     y += onp.random.normal(scale=onp.sqrt(noise_variance), size=y.shape[0])
 
     kernel = RBF()
-    gp = GP(kernel=kernel, key=key)
+    gp = GP(kernel=kernel, key=key, dimension_reduction=True, reduced_dim=1)
     gp.fit(X, y)
-    # preds_mean = gp.predict(Xtest)
+    preds_mean = gp.predict(X)
+    import ipdb; ipdb.set_trace()
