@@ -15,7 +15,7 @@ import sys
 
 # sys.path.append("../../models")
 # from gaussian_process import (
-    
+
 # )
 from multigroupGP import (
     GP,

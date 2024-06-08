@@ -23,7 +23,7 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 
-n_repeats = 10
+n_repeats = 20
 p = 1
 noise_scale_true = 0.1
 n0 = 100
@@ -60,22 +60,31 @@ def separated_gp():
         ######### Fit MGGP #########
         ############################
         X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
-        mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
+        mggp = GP(
+            kernel=MultiGroupRBF(),
+            is_mggp=True,
+            group_specific_noise_terms=True,
+            n_groups=n_groups,
+        )
 
-        curr_group_dists = np.ones((n_groups, n_groups))
-        np.fill_diagonal(curr_group_dists, 0)
+        curr_group_dists = np.eye(n_groups) - np.ones((n_groups, n_groups))
+        # np.fill_diagonal(curr_group_dists, 0)
+
         mggp.fit(
             X,
             Y,
             groups=X_groups,
             group_distances=curr_group_dists,
             verbose=False,
+            # tol=1e-5,
             group_specific_noise_terms=True,
         )
-        noise_variances = np.exp(mggp.params[1:3])
-        output_scale = np.exp(mggp.params[3])
-        curr_a = np.exp(mggp.params[4])
-        lengthscale = np.exp(mggp.params[5])
+        # print(mggp.params["params"])
+        # import ipdb; ipdb.set_trace()
+        noise_variances = np.exp(mggp.params["params"][1:3])
+        output_scale = np.exp(mggp.params["params"][3])
+        curr_a = np.exp(mggp.params["params"][4])
+        lengthscale = np.exp(mggp.params["params"][5])
 
         fitted_params[ii, :] = np.array(
             [output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]]
@@ -109,7 +118,12 @@ def union_gp():
         ######### Fit MGGP #########
         ############################
         X_groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
-        mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
+        mggp = GP(
+            kernel=MultiGroupRBF(),
+            is_mggp=True,
+            group_specific_noise_terms=True,
+            n_groups=n_groups,
+        )
 
         curr_group_dists = np.ones((n_groups, n_groups))
         np.fill_diagonal(curr_group_dists, 0)
@@ -122,10 +136,10 @@ def union_gp():
             group_specific_noise_terms=True,
         )
         # assert len(mggp.params) == n_params + 2
-        noise_variances = np.exp(mggp.params[1:3])
-        output_scale = np.exp(mggp.params[3])
-        curr_a = np.exp(mggp.params[4])
-        lengthscale = np.exp(mggp.params[5])
+        noise_variances = np.exp(mggp.params["params"][1:3])
+        output_scale = np.exp(mggp.params["params"][3])
+        curr_a = np.exp(mggp.params["params"][4])
+        lengthscale = np.exp(mggp.params["params"][5])
 
         fitted_params[ii, :] = np.array(
             [output_scale, curr_a, lengthscale, noise_variances[0], noise_variances[1]]
@@ -162,24 +176,24 @@ if __name__ == "__main__":
     results_df_output_scales = pd.melt(
         pd.DataFrame(
             {
-                "Separated GP": fitted_output_scales_sep,
-                "Union GP": fitted_output_scales_union,
+                "Separate": fitted_output_scales_sep,
+                "Union": fitted_output_scales_union,
             }
         )
     )
     sns.boxplot(data=results_df_output_scales, x="variable", y="value", color="gray")
     plt.axhline(1.0, linestyle="--", color="black")
-    plt.xlabel("Data generating model")
+    plt.xlabel("Data-generating model")
     plt.ylabel("Fitted value")
     plt.title(r"$\sigma^2$")
     plt.tight_layout()
 
     plt.subplot(142)
     results_df_as = pd.melt(
-        pd.DataFrame({"Separated GP": fitted_as_sep, "Union GP": fitted_as_union})
+        pd.DataFrame({"Separate": fitted_as_sep, "Union": fitted_as_union})
     )
     sns.boxplot(data=results_df_as, x="variable", y="value", color="gray")
-    plt.xlabel("Data generating model")
+    plt.xlabel("Data-generating model")
     plt.ylabel("Fitted value")
     plt.yscale("log")
     plt.title(r"$a$")
@@ -189,14 +203,14 @@ if __name__ == "__main__":
     results_df_lengthscales = pd.melt(
         pd.DataFrame(
             {
-                "Separated GP": fitted_lengthscales_sep,
-                "Union GP": fitted_lengthscales_union,
+                "Separate": fitted_lengthscales_sep,
+                "Union": fitted_lengthscales_union,
             }
         )
     )
     sns.boxplot(data=results_df_lengthscales, x="variable", y="value", color="gray")
     plt.axhline(1.0, linestyle="--", color="black")
-    plt.xlabel("Data generating model")
+    plt.xlabel("Data-generating model")
     plt.ylabel("Fitted value")
     plt.title(r"$b$")
     plt.tight_layout()
@@ -215,10 +229,10 @@ if __name__ == "__main__":
     results_df_noise_scales = pd.melt(
         pd.DataFrame(
             {
-                "Separated GP": np.concatenate(
+                "Separate": np.concatenate(
                     [fitted_noise_variances_sep[:, 0], fitted_noise_variances_sep[:, 1]]
                 ),
-                "Union GP": np.concatenate(
+                "Union": np.concatenate(
                     [
                         fitted_noise_variances_union[:, 0],
                         fitted_noise_variances_union[:, 1],
@@ -233,7 +247,7 @@ if __name__ == "__main__":
     )
     sns.boxplot(data=results_df_noise_scales, x="variable", y="value", hue="Group")
     plt.axhline(noise_scale_true ** 2, linestyle="--", color="black")
-    plt.xlabel("Data generating model")
+    plt.xlabel("Data-generating model")
     plt.ylabel("Fitted value")
     plt.title(r"$\tau^2$")
     plt.legend(bbox_to_anchor=(1.1, 1.05), borderaxespad=0, title="Group")

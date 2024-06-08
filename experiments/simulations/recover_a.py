@@ -83,10 +83,10 @@ def recover_alpha_experiment():
 
             curr_group_dists = np.ones((n_groups, n_groups)) - np.eye(n_groups)
             mggp.fit(X, Y, groups=X_groups, group_distances=curr_group_dists)
-            assert len(mggp.params) == n_params + 2
-            output_scale = np.exp(mggp.params[2])
-            curr_a = np.exp(mggp.params[3])
-            lengthscale = np.exp(mggp.params[4])
+            assert len(mggp.params["params"]) == n_params + 2
+            output_scale = np.exp(mggp.params["params"][2])
+            curr_a = np.exp(mggp.params["params"][3])
+            lengthscale = np.exp(mggp.params["params"][4])
 
             fitted_as[ii, jj] = curr_a
 
@@ -98,7 +98,7 @@ def recover_alpha_experiment():
     plt.tight_layout()
     plt.xlabel(r"True $a$")
     plt.ylabel(r"Estimated $a$")
-    plt.savefig("../../plots/recovering_alpha.png")
+    plt.savefig("../../plots/recovering_alpha.png", dpi=300)
     plt.show()
     import ipdb
 

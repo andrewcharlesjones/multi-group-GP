@@ -10,7 +10,9 @@ from scipy.optimize import minimize
 from sklearn.decomposition import PCA
 
 import sys
-from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
+
+# from multigroupGP import GP, multigroup_rbf_kernel, rbf_kernel
+from multigroupGP import GP, MultiGroupRBF, RBF
 
 import matplotlib
 
@@ -28,9 +30,9 @@ data_prefixes = [
     "Brain_Anterior_cingulate_cortex_(BA24)",
     # "Brain_Frontal_Cortex_(BA9)",
     # "cortex",
-    "Breast_Mammary_Tissue",
+    # "Breast_Mammary_Tissue",
     # "tibial_artery",
-    # "Artery_Coronary",
+    "Artery_Coronary",
     # "uterus",
     # "vagina",
 ]
@@ -52,7 +54,7 @@ tissue_labels = [
 output_col = "TRISCHD"
 
 
-n_genes = 50
+n_genes = 20
 a_list = [np.power(10, x * 1.0) for x in np.arange(-6, 6)]
 group_dist_mat = np.array([[0, 1], [1, 0]])
 plt.figure(figsize=(14, 7))
@@ -90,7 +92,10 @@ for ii in range(len(data2_files)):
 
     X = X[:, :n_genes]
 
-    # X = PCA(n_components=n_genes).fit_transform(X)
+    X = PCA(n_components=n_genes).fit_transform(X)
+
+    X = (X - X.mean(0)) / X.std(0)
+    Y = (Y - Y.mean(0)) / Y.std(0)
 
     X0 = X[np.where(X_groups == 0)[1].astype(bool)]
     X1 = X[np.where(X_groups == 1)[1].astype(bool)]
@@ -102,33 +107,43 @@ for ii in range(len(data2_files)):
     for curr_a in a_list:
 
         kernel_params = [np.log(1.0), np.log(curr_a), np.log(1.0)]
-        curr_K_XX = multigroup_rbf_kernel(
-            kernel_params=kernel_params,
+        kernel = MultiGroupRBF(
+            amplitude=1.0,
+            group_diff_param=curr_a,
+            lengthscale=1.0,
+            # kernel_params=kernel_params,
+        )
+        curr_K_XX = kernel(
             x1=X,
             x2=X,
             groups1=X_groups,
             groups2=X_groups,
             group_distances=group_dist_mat,
+            log_params=False,
         )
         curr_LL = mvn.logpdf(Y, np.zeros(len(X)), curr_K_XX + np.eye(len(X)))
         LL_list.append(curr_LL)
 
     plt.subplot(1, 2, ii + 1)
-    plt.plot(a_list, LL_list, color="black", label="MGGP")
+    plt.plot(a_list, LL_list, color="black", label="Multi-Group")
 
     ## Union GP
-    kernel_params = [np.log(1.0), np.log(1.0)]
-    curr_K_XX = rbf_kernel(kernel_params, X, X)
+    # kernel_params = [np.log(1.0), np.log(1.0)]
+    kernel = RBF(amplitude=1.0, lengthscale=1.0)
+    curr_K_XX = kernel(X, log_params=False)
+    # import ipdb; ipdb.set_trace()
     ll_union = mvn.logpdf(Y, np.zeros(len(X)), curr_K_XX + np.eye(len(X)))
-    plt.axhline(ll_union, label="Union GP", linestyle="--", color="green")
+    plt.axhline(ll_union, label="Union", linestyle="--", color="green")
 
     ## Separate GPs
     ll_sep = 0
-    curr_K_X0X0 = rbf_kernel(kernel_params, X0, X0)
+    # curr_K_X0X0 = RBF(kernel_params, X0, X0)
+    curr_K_X0X0 = kernel(X0, log_params=False)
     ll_sep += mvn.logpdf(Y0, np.zeros(len(X0)), curr_K_X0X0 + np.eye(len(X0)))
-    curr_K_X1X1 = rbf_kernel(kernel_params, X1, X1)
+    # curr_K_X1X1 = RBF(kernel_params, X1, X1)
+    curr_K_X1X1 = kernel(X1, log_params=False)
     ll_sep += mvn.logpdf(Y1, np.zeros(len(X1)), curr_K_X1X1 + np.eye(len(X1)))
-    plt.axhline(ll_sep, label="Separate GPs", linestyle="--", color="red")
+    plt.axhline(ll_sep, label="Separate", linestyle="--", color="red")
 
     plt.xlabel(r"$a$")
     plt.ylabel(r"$\log p(Y)$")
@@ -136,7 +151,7 @@ for ii in range(len(data2_files)):
     plt.title(tissue_labels[ii])
     plt.legend()
 plt.tight_layout()
-plt.savefig("../../plots/gtex_two_group_a_range.png")
+plt.savefig("../../plots/gtex_two_group_a_range.png", dpi=300)
 plt.show()
 import ipdb
 

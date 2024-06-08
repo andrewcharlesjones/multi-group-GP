@@ -16,7 +16,7 @@ font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-KERNEL_TYPE = "rbf"
+KERNEL_TYPE = "matern"
 
 if KERNEL_TYPE == "matern":
     gp_kernel = Matern12
@@ -41,8 +41,8 @@ frac_train = 0.5
 a_true = 1e0
 group_dist_mat = np.array(
     [
-        [0.0, 0.1, 1.0],
-        [0.1, 0.0, 1.0],
+        [0.0, 1e-1, 1.0],
+        [1e-1, 0.0, 1.0],
         [1.0, 1.0, 0.0],
     ]
 )
@@ -168,7 +168,7 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
     X = np.random.uniform(low=xlims[0], high=xlims[1], size=(n_groups * n_per_group, p))
 
     curr_K_XX = kernel(
-        x1=X, groups1=X_groups, log_params=False
+        x1=X, groups1=X_groups, log_params=False, group_distances=group_dist_mat
     ) + noise_variance_true * np.eye(n_groups * n_per_group)
     Y = mvn.rvs(np.zeros(n_groups * n_per_group), curr_K_XX)
 
@@ -260,10 +260,10 @@ def separated_gp():
     results_df = pd.melt(
         pd.DataFrame(
             {
-                "MGGP": errors_mggp,
-                "Separated GP": errors_separated_gp,
-                "Union GP": errors_union_gp,
-                "HGP": errors_hgp,
+                "Multi-Group": errors_mggp,
+                "Separate": errors_separated_gp,
+                "Union": errors_union_gp,
+                "Hierarchical": errors_hgp,
             }
         )
     )
@@ -355,10 +355,10 @@ def union_gp():
     results_df = pd.melt(
         pd.DataFrame(
             {
-                "MGGP": errors_mggp,
-                "Separated GP": errors_separated_gp,
-                "Union GP": errors_union_gp,
-                "HGP": errors_hgp,
+                "Multi-Group": errors_mggp,
+                "Separate": errors_separated_gp,
+                "Union": errors_union_gp,
+                "Hierarchical": errors_hgp,
             }
         )
     )
@@ -454,10 +454,10 @@ def hgp_experiment():
     results_df = pd.melt(
         pd.DataFrame(
             {
-                "MGGP": errors_mggp,
-                "Separated GP": errors_separated_gp,
-                "Union GP": errors_union_gp,
-                "HGP": errors_hgp,
+                "Multi-Group": errors_mggp,
+                "Separate": errors_separated_gp,
+                "Union": errors_union_gp,
+                "Hierarchical": errors_hgp,
             }
         )
     )
@@ -540,10 +540,10 @@ def mggp():
     results_df = pd.melt(
         pd.DataFrame(
             {
-                "MGGP": errors_mggp,
-                "Separated GP": errors_separated_gp,
-                "Union GP": errors_union_gp,
-                "HGP": errors_hgp,
+                "Multi-Group": errors_mggp,
+                "Separate": errors_separated_gp,
+                "Union": errors_union_gp,
+                "Hierarchical": errors_hgp,
             }
         )
     )
@@ -559,11 +559,11 @@ if __name__ == "__main__":
     mggp_results = mggp()
     # import ipdb; ipdb.set_trace()
 
-    sep_gp_results["method"] = ["Separated GP"] * sep_gp_results.shape[0]
-    union_gp_results["method"] = ["Union GP"] * union_gp_results.shape[0]
-    hgp_results["method"] = ["HGP"] * hgp_results.shape[0]
+    sep_gp_results["method"] = ["Separate"] * sep_gp_results.shape[0]
+    union_gp_results["method"] = ["Union"] * union_gp_results.shape[0]
+    hgp_results["method"] = ["Hierarchical"] * hgp_results.shape[0]
     mggp_results["method"] = [
-        r"MGGP, $a=" + str(round(a_true, 1)) + "$"
+        r"Multi-Group, $a=" + str(round(a_true, 1)) + "$"
     ] * mggp_results.shape[0]
 
     all_results = pd.concat(
@@ -582,11 +582,11 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     if KERNEL_TYPE == "rbf":
-        plt.savefig("../../plots/prediction_simulation_experiment_rbf.png")
+        plt.savefig("../../plots/prediction_simulation_experiment_rbf.png", dpi=300)
     elif KERNEL_TYPE == "matern":
-        plt.savefig("../../plots/prediction_simulation_experiment_matern.png")
+        plt.savefig("../../plots/prediction_simulation_experiment_matern.png", dpi=300)
     else:
-        plt.savefig("../../plots/prediction_simulation_experiment.png")
+        plt.savefig("../../plots/prediction_simulation_experiment.png", dpi=300)
     plt.show()
 
     import ipdb

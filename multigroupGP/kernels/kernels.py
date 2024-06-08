@@ -318,6 +318,7 @@ class MultiGroupRBF(Kernel):
 
         # Embed group distance matrix in Euclidean space for convenience.
         embedding = embed_distance_matrix(group_distances)
+        
 
         x1 = x1 / (lengthscale)
         group_embeddings1 = jnp.array([embedding[xx] for xx in groups1])

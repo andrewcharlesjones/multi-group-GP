@@ -22,14 +22,16 @@ matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
 
-n_repeats = 20
+n_repeats = 10
 p = 1
-noise_variance_true = 0.1
-n_per_group = np.array([10, 50, 50])
+noise_variance_true = 1e-1
+n_per_group = np.array([60, 100, 100])
+n_train_per_group = np.array([5, 50, 50])
 n_groups = 3
 frac_train = 0.5
 FIX_TRUE_PARAMS = False
 n0_list = [5, 10, 30, 50]
+# n0_list = [5, 50]
 xlims = [-10, 10]
 
 g12_dist = 1e-5
@@ -58,6 +60,7 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
         groups1=groups1,
         groups2=groups2,
         group_distances=group_dist_mat,
+        log_params=False,
     )
 
     ## Generate data
@@ -73,7 +76,24 @@ def generate_mggp_data(n_groups, n_per_group, p=1):
     curr_K_XX = kernel(X, X, X_groups, X_groups) + noise_variance_true * np.eye(n)
     Y = mvn.rvs(np.zeros(n), curr_K_XX)
 
+    # plt.scatter(X[X_groups == 0], Y[X_groups==0])
+    # plt.scatter(X[X_groups == 1], Y[X_groups==1])
+    # plt.scatter(X[X_groups == 2], Y[X_groups==2])
+    # plt.show()
+    # import ipdb; ipdb.set_trace()
     return X, Y, X_groups
+
+
+def get_train_test_idx(X_groups, n_per_group):
+    train_idx = []
+    all_idx = np.arange(len(X_groups))
+    for gg in range(n_groups):
+        curr_idx = np.where(X_groups == gg)[0]
+        curr_train_idx = np.random.choice(curr_idx, size=n_per_group[gg])
+        train_idx.append(curr_train_idx)
+    train_idx = np.concatenate(train_idx)
+    test_idx = np.setdiff1d(all_idx, train_idx)
+    return train_idx, test_idx
 
 
 def experiment():
@@ -88,20 +108,24 @@ def experiment():
         for jj, n0 in enumerate(n0_list):
             ## Generate data from MGGP
 
-            n_per_group[0] = n0
+            n_train_per_group[0] = n0
             X, Y, X_groups = generate_mggp_data(
                 n_groups=n_groups, n_per_group=n_per_group
             )
-            (
-                X_train,
-                X_test,
-                Y_train,
-                Y_test,
-                X_groups_train,
-                X_groups_test,
-            ) = train_test_split(
-                X, Y, X_groups, test_size=1 - frac_train, random_state=42
-            )
+            # (
+            #     X_train,
+            #     X_test,
+            #     Y_train,
+            #     Y_test,
+            #     X_groups_train,
+            #     X_groups_test,
+            # ) = train_test_split(
+            #     X, Y, X_groups, test_size=1 - frac_train, random_state=42
+            # )
+            train_idx, test_idx = get_train_test_idx(X_groups, n_train_per_group)
+            X_train, X_test = X[train_idx], X[test_idx]
+            Y_train, Y_test = Y[train_idx], Y[test_idx]
+            X_groups_train, X_groups_test = X_groups[train_idx], X_groups[test_idx]
 
             ############################
             ######### Fit MGGP #########
@@ -113,6 +137,7 @@ def experiment():
 
             group0_idx = X_groups_test == 0
             curr_error = np.mean((Y_test[group0_idx] - preds_mean[group0_idx]) ** 2)
+            # import ipdb; ipdb.set_trace()
             errors_mggp[ii, jj] = curr_error
 
             ############################
@@ -130,6 +155,7 @@ def experiment():
                 sep_gp.fit(curr_X_train, curr_Y_train)
                 preds_mean = sep_gp.predict(curr_X_test)
                 curr_error_sep_gp = np.sum((curr_Y_test - preds_mean) ** 2)
+                # import ipdb; ipdb.set_trace()
 
                 if groupnum == 0:
                     sum_error_sep_gp += curr_error_sep_gp
@@ -161,13 +187,13 @@ def experiment():
             errors_hgp[ii, jj] = curr_error
 
     errors_mggp_df = pd.melt(pd.DataFrame(errors_mggp, columns=n0_list))
-    errors_mggp_df["model"] = ["MGGP"] * errors_mggp_df.shape[0]
+    errors_mggp_df["model"] = ["Multi-Group"] * errors_mggp_df.shape[0]
     errors_separated_gp_df = pd.melt(pd.DataFrame(errors_separated_gp, columns=n0_list))
-    errors_separated_gp_df["model"] = ["Separated GP"] * errors_separated_gp_df.shape[0]
+    errors_separated_gp_df["model"] = ["Separate"] * errors_separated_gp_df.shape[0]
     errors_union_gp_df = pd.melt(pd.DataFrame(errors_union_gp, columns=n0_list))
-    errors_union_gp_df["model"] = ["Union GP"] * errors_union_gp_df.shape[0]
+    errors_union_gp_df["model"] = ["Union"] * errors_union_gp_df.shape[0]
     errors_hgp_df = pd.melt(pd.DataFrame(errors_hgp, columns=n0_list))
-    errors_hgp_df["model"] = ["HGP"] * errors_hgp_df.shape[0]
+    errors_hgp_df["model"] = ["Hierarchical"] * errors_hgp_df.shape[0]
 
     results_df = pd.concat(
         [errors_mggp_df, errors_separated_gp_df, errors_union_gp_df, errors_hgp_df],
@@ -183,12 +209,13 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(7, 5))
 
-    g = sns.lineplot(data=results_df, x="variable", y="value", hue="model")
+    g = sns.lineplot(data=results_df.reset_index(), x="variable", y="value", hue="model")
     g.legend_.set_title(None)
     plt.ylabel(r"Prediction MSE, group $1$")
     plt.xlabel(r"$n$, group 1")
+    plt.ylim([0, plt.gca().get_ylim()[1]])
     plt.tight_layout()
-    plt.savefig("../../plots/three_group_simulated_prediction.png")
+    plt.savefig("../../plots/three_group_simulated_prediction.png", dpi=300)
     plt.show()
 
     import ipdb

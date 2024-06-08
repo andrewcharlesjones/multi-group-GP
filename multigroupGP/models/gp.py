@@ -142,7 +142,9 @@ def make_gp_funs(
         )
         pred_mean = mean + jnp.dot(cov_y_f.T, Kinv_y)
         if return_cov:
-            Kinv_Kyf = scipy.linalg.solve_triangular(chol.T, scipy.linalg.solve_triangular(chol, cov_y_f, lower=True))
+            Kinv_Kyf = scipy.linalg.solve_triangular(
+                chol.T, scipy.linalg.solve_triangular(chol, cov_y_f, lower=True)
+            )
             pred_cov = cov_f_f - jnp.dot(cov_y_f.T, Kinv_Kyf)
             return pred_mean, pred_cov
         else:
@@ -150,7 +152,7 @@ def make_gp_funs(
 
     def log_marginal_likelihood(params, x, y, **kwargs):
 
-        if kwargs["dimension_reduction"]:
+        if "dimension_reduction" in kwargs and kwargs["dimension_reduction"]:
             x = jnp.matmul(x, params["W"])
 
         mean, cov_params, noise_scales = unpack_kernel_params(params["params"])
@@ -196,6 +198,7 @@ class GP:
         group_specific_noise_terms=False,
         dimension_reduction=False,
         reduced_dim=None,
+        n_groups=None,
     ):
 
         self.key = key
@@ -207,6 +210,7 @@ class GP:
         self.group_specific_noise_terms = group_specific_noise_terms
         self.dimension_reduction = dimension_reduction
         self.reduced_dim = reduced_dim
+        self.n_groups = n_groups
 
         # if self.is_hgp:
         #     if within_group_kernel is None:
@@ -223,11 +227,16 @@ class GP:
         # else:
         #     self.kernel = kernel
         self.kernel = kernel
-
+        # import ipdb; ipdb.set_trace()
         if self.is_mggp:
             if self.group_specific_noise_terms:
-                n_groups = len(onp.unique(groups))
-                self.n_noise_terms = n_groups
+                if self.n_groups is None:
+                    raise Exception(
+                        "Must specify number of groups to add group-specific noise terms."
+                    )
+                # n_groups = len(onp.unique(groups))
+                self.n_noise_terms = self.n_groups
+
             else:
                 self.n_noise_terms = 1
         else:
@@ -298,8 +307,9 @@ class GP:
         # params = 0.1 * onp.random.normal(size=(self.num_params))
         if self.dimension_reduction:
             params = {
-            "W": onp.random.normal(size=(self.p, self.reduced_dim)),
-            "params": 0.1 * onp.random.normal(size=(self.num_params))}
+                "W": onp.random.normal(size=(self.p, self.reduced_dim)),
+                "params": 0.1 * onp.random.normal(size=(self.num_params)),
+            }
         else:
             params = {"params": 0.1 * onp.random.normal(size=(self.num_params))}
 
@@ -371,7 +381,11 @@ class GP:
             n_noise_terms=self.n_noise_terms,
         )
         self.maximize_LL(
-            tol=tol, verbose=verbose, print_every=print_every, max_steps=max_steps, learning_rate=learning_rate
+            tol=tol,
+            verbose=verbose,
+            print_every=print_every,
+            max_steps=max_steps,
+            learning_rate=learning_rate,
         )
 
     def predict(self, X_test, groups_test=None, return_cov=False):
@@ -388,6 +402,7 @@ class GP:
             dimension_reduction=self.dimension_reduction,
         )
         return preds
+
 
 if __name__ == "__main__":
     import jax.numpy as jnp
@@ -410,4 +425,6 @@ if __name__ == "__main__":
     gp = GP(kernel=kernel, key=key, dimension_reduction=True, reduced_dim=1)
     gp.fit(X, y)
     preds_mean = gp.predict(X)
-    import ipdb; ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()

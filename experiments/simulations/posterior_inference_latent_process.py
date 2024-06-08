@@ -15,104 +15,84 @@ import arviz as az
 import pandas as pd
 import seaborn as sns
 
-MODEL_DIR = "../../multigroupGP/models"
+import socket
+
+if socket.gethostname() == "andyjones":
+    MODEL_DIR = "../../multigroupGP/models"
+else:
+    MODEL_DIR = "../../models"
 
 
 font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-N_MCMC_ITER = 20
-N_WARMUP_ITER = 20
+N_MCMC_ITER = 200
+N_WARMUP_ITER = 100
 N_CHAINS = 4
 
-frac_train = 0.75
-n0, n1 = 10, 10
-ntotal = n0 + n1
-noise_variance = 0.1
+n0, n1 = 50, 50
+n = n0 + n1
+noise_variance = np.array([0.1, 0.3])
 p = 1
 n_groups = 2
-n_infinite = 80
+
+limits = [-5, 5]
+
+X = np.random.uniform(*limits, size=(n, p))
 
 X0_group_one_hot = np.zeros(n_groups)
 X0_group_one_hot[0] = 1
-X0_groups = np.repeat([X0_group_one_hot], n_infinite // 2, axis=0)
+X0_groups = np.repeat([X0_group_one_hot], n0, axis=0)
 X1_group_one_hot = np.zeros(n_groups)
 X1_group_one_hot[1] = 1
-X1_groups = np.repeat([X1_group_one_hot], n_infinite // 2, axis=0)
-groups_oh_full = np.concatenate([X0_groups, X1_groups], axis=0)
-groups_full = np.concatenate(
-    [np.zeros(n_infinite // 2), np.ones(n_infinite // 2)]
-).astype(int)
+X1_groups = np.repeat([X1_group_one_hot], n1, axis=0)
+groups_oh = np.concatenate([X0_groups, X1_groups], axis=0)
+groups = np.concatenate([np.zeros(n0), np.ones(n1)]).astype(int)
 
-X_full = np.expand_dims(np.linspace(-5, 5, n_infinite), 1)
-X_full = X_full[
-    np.random.choice(np.arange(n_infinite), size=n_infinite, replace=True), :
-]
 
 sigma2_true = 1.0
 a_true = 1.0
 b_true = 1.0
 mean_intercepts = np.array([1, 2])
 
-groups_dists = np.ones((2, 2))
-np.fill_diagonal(groups_dists, 0)
+groups_dists = 1 - np.eye(n_groups)
 
 kernel = MultiGroupRBF(
     amplitude=sigma2_true, group_diff_param=a_true, lengthscale=b_true
 )
+
 K_XX = kernel(
-    x1=X_full,
-    x2=X_full,
-    groups1=groups_full,
-    groups2=groups_full,
+    x1=X,
+    x2=X,
+    groups1=groups,
+    groups2=groups,
     group_distances=groups_dists,
 )
 
-Y_full_noiseless = mvn(np.zeros(n_infinite), K_XX + np.eye(n_infinite) * 1e-5).rvs()
-Y_means = groups_oh_full @ mean_intercepts
-Y_full_noiseless_with_mean = Y_full_noiseless + Y_means
-Y_full = Y_full_noiseless_with_mean + np.random.normal(
-    scale=np.sqrt(noise_variance), size=n_infinite
-)
-# import ipdb; ipdb.set_trace()
+# Y_noiseless = mvn(np.zeros(n), K_XX + np.eye(n) * 1e-6).rvs()
+# Y_means = groups_oh @ mean_intercepts
+# Y_noiseless_with_mean = Y_noiseless + Y_means
+# Y = Y_noiseless_with_mean + np.random.normal(
+#     scale=np.sqrt(noise_variance), size=n
+# )
+Y_means = groups_oh @ mean_intercepts
+Y = mvn(Y_means, K_XX + np.eye(n) * noise_variance[groups]).rvs()
 
-group0_idx = np.random.choice(np.arange(n_infinite // 2), size=n0)
-group1_idx = np.random.choice(np.arange(n_infinite // 2, n_infinite), size=n1)
-X = np.concatenate([X_full[group0_idx], X_full[group1_idx]])
-Y = np.concatenate([Y_full[group0_idx], Y_full[group1_idx]])
-groups = np.concatenate([groups_full[group0_idx], groups_full[group1_idx]])
-groups_oh = np.concatenate([groups_oh_full[group0_idx], groups_oh_full[group1_idx]])
-
-(
-    Xtrain,
-    Xtest,
-    Ytrain,
-    Ytest,
-    groups_train,
-    groups_test,
-    groups_oh_train,
-    groups_oh_test,
-) = train_test_split(X, Y, groups, groups_oh, test_size=1 - frac_train, random_state=42)
-Xtest = X_full
-Ytest = Y_full
-groups_test = groups_full
-ntrain, ntest = Xtrain.shape[0], Xtest.shape[0]
-# import ipdb; ipdb.set_trace()
 data = {
-    "N1": ntrain,
-    "N2": ntest,
-    "x1": Xtrain.squeeze(),
-    "x2": Xtest.squeeze(),
-    "design1": groups_oh_train,
-    "design2": groups_oh_full,
-    "y1": Ytrain,
-    "groups1": groups_train,
-    "groups2": groups_test,
+    "N": n,
+    "P": p,
+    "x": X,
+    "design": groups_oh,
+    "y": Y,
+    "groups": groups,
+    "ngroups": n_groups,
+    "group_dist_mat": groups_dists,
 }
 
+
 ## Load model
-with open(pjoin(MODEL_DIR, "mggp.stan"), "r") as file:
+with open(pjoin(MODEL_DIR, "mggp_collapsed.stan"), "r") as file:
     model_code = file.read()
 
 # Set up model
@@ -125,127 +105,97 @@ fit = posterior.sample(
 
 arviz_summary = az.summary(fit)
 
-plt.figure(figsize=(12, 5))
 
-plt.scatter(
-    Xtrain[groups_train == 0],
-    Ytrain[groups_train == 0],
-    color="blue",  # , label="Group 1"
-)
-plt.scatter(
-    Xtrain[groups_train == 1],
-    Ytrain[groups_train == 1],
-    color="red",  # , label="Group 2"
-)
-
-Ytest_samples = fit["y2"]
-Ftest_samples = fit["f"][ntrain:, :]
-# import ipdb; ipdb.set_trace()
-
-## Group 1
-colors = ["blue", "red"]
-for groupnum in [0, 1]:
-    curr_idx = np.where(groups_test == groupnum)[0]
-
-    ## Plot F
-    curr_Ftest_samples = Ftest_samples[curr_idx, :]
-    curr_Xtest = Xtest[curr_idx, :]
-    preds_mean = curr_Ftest_samples.mean(1)
-    preds_stddev = curr_Ftest_samples.std(1)
-    preds_upper = preds_mean + 2 * preds_stddev
-    preds_lower = preds_mean - 2 * preds_stddev
-    sorted_idx = np.argsort(curr_Xtest.squeeze())
-    plt.plot(
-        curr_Xtest.squeeze()[sorted_idx],
-        preds_mean[sorted_idx],
-        c=colors[groupnum],
-        alpha=0.5,
-        label=r"$F(x; c_" + str(groupnum + 1) + ")$",
-        linestyle="-",
-    )
-    plt.fill_between(
-        curr_Xtest.squeeze()[sorted_idx],
-        preds_lower[sorted_idx],
-        preds_upper[sorted_idx],
-        alpha=0.3,
-        color=colors[groupnum],
-    )
-
-    ## Plot Y
-    curr_Ytest_samples = Ytest_samples[curr_idx, :]
-    curr_Xtest = Xtest[curr_idx, :]
-    preds_mean = curr_Ytest_samples.mean(1)
-    preds_stddev = curr_Ytest_samples.std(1)
-    preds_upper = preds_mean + 2 * preds_stddev
-    preds_lower = preds_mean - 2 * preds_stddev
-    sorted_idx = np.argsort(curr_Xtest.squeeze())
-    plt.plot(
-        curr_Xtest.squeeze()[sorted_idx],
-        preds_mean[sorted_idx],
-        c=colors[groupnum],
-        alpha=0.5,
-        label=r"$Y(x; c_" + str(groupnum + 1) + ")$",
-        linestyle="--",
-    )
-    plt.fill_between(
-        curr_Xtest.squeeze()[sorted_idx],
-        preds_lower[sorted_idx],
-        preds_upper[sorted_idx],
-        alpha=0.3,
-        color=colors[groupnum],
-    )
-
-
-plt.legend(bbox_to_anchor=(1.1, 1.05))
-plt.tight_layout()
-plt.savefig("../../plots/mggp_predictive_samples.png")
-# plt.show()
-plt.close()
-
-samples_df = pd.DataFrame(
+cov_params_df = pd.DataFrame(
     {
-        r"$a$": fit["alpha"].squeeze(),
-        r"$b$": fit["lengthscale"].squeeze(),
-        r"$\sigma^2$": fit["outputvariance"].squeeze(),
-        r"$\beta_1$": fit["beta"][0, :].squeeze(),
-        r"$\beta_2$": fit["beta"][1, :].squeeze(),
-        r"$\tau^2$": fit["sigma"].squeeze() ** 2,
+        "outputvariance": fit["outputvariance"].squeeze(),
+        "lengthscale": fit["lengthscale"].squeeze(),
+        "alpha": fit["alpha"].squeeze(),
     }
 )
-samples_df_melted = pd.melt(samples_df)
-truth_df = pd.DataFrame(
-    {
-        r"$a$": [a_true],
-        r"$b$": [b_true],
-        r"$\sigma^2$": [sigma2_true],
-        r"$\beta_1$": [mean_intercepts[0]],
-        r"$\beta_2$": [mean_intercepts[1]],
-        r"$\tau^2$": noise_variance,
-    }
-)
-truth_df_melted = pd.melt(truth_df)
-plt.figure(figsize=(7, 5))
-sns.boxplot(data=samples_df_melted, y="variable", x="value", orient="h", color="gray")
-sns.pointplot(
-    data=truth_df_melted,
-    y="variable",
-    x="value",
-    join=False,
-    orient="h",
-    marker="x",
-    color="red",
-)
-plt.ylabel("")
-plt.xlabel("Samples")
-plt.tight_layout()
-plt.savefig("../../plots/mggp_hyperparameter_samples.png")
-plt.close()
+noise_variance_df = pd.DataFrame(fit["sigma"].T)
+beta_df = pd.DataFrame(fit["beta"])
 
-az.plot_autocorr(fit, var_names=["lengthscale", "outputvariance", "alpha"])
+cov_params_df.to_csv("./out/stan_out/cov_params_samples.csv")
+noise_variance_df.to_csv("./out/stan_out/noise_variance_samples.csv")
+beta_df.to_csv("./out/stan_out/beta_samples.csv")
+
+# fig, axs = plt.subplots(1, 4, figsize=(20, 5))
+# [ax.set_xlabel("Lag") for ax in axs]
+# axs[0].set_ylabel("Correlation")
+# az.plot_autocorr(fit, var_names="alpha", ax=axs)
+# [axs[ii].set_title(r"$a$, Chain " + str(ii + 1)) for ii in range(len(axs))]
+# plt.tight_layout()
+# plt.show()
+
+print(cov_params_df.mean())
+
+axs = az.plot_autocorr(fit, combined=True, textsize=20, figsize=(15, 15))
+axs[0, 0].set_title(r"$\sigma^2$")
+axs[0, 0].set_xlabel("Lag")
+axs[0, 0].set_ylabel("Correlation")
+
+axs[0, 1].set_title(r"$b$")
+axs[0, 1].set_xlabel("Lag")
+axs[0, 1].set_ylabel("Correlation")
+
+axs[0, 2].set_title(r"$a$")
+axs[0, 2].set_xlabel("Lag")
+axs[0, 2].set_ylabel("Correlation")
+
+axs[1, 0].set_title(r"$\tau^2_1$")
+axs[1, 0].set_xlabel("Lag")
+axs[1, 0].set_ylabel("Correlation")
+
+axs[1, 1].set_title(r"$\tau^2_2$")
+axs[1, 1].set_xlabel("Lag")
+axs[1, 1].set_ylabel("Correlation")
+
+axs[1, 2].set_title(r"$\beta_1$")
+axs[1, 2].set_xlabel("Lag")
+axs[1, 2].set_ylabel("Correlation")
+
+axs[2, 0].set_title(r"$\beta_2$")
+axs[2, 0].set_xlabel("Lag")
+axs[2, 0].set_ylabel("Correlation")
+
 plt.tight_layout()
-plt.savefig("../../plots/mggp_autocorrelation.png")
+plt.savefig("./out/stan_out/autocorrelation_simulation.png", dpi=300)
 # plt.show()
 plt.close()
+# import ipdb
+
+# ipdb.set_trace()
+
+
+axs = az.plot_posterior(
+    fit, hdi_prob=0.95, point_estimate=None, textsize=20, figsize=(15, 15)
+)
+axs[0, 0].set_title(r"$\sigma^2$")
+axs[0, 0].axvline(sigma2_true, linestyle="--", color="red")
+
+axs[0, 1].set_title(r"$b$")
+axs[0, 1].axvline(b_true, linestyle="--", color="red")
+
+axs[0, 2].set_title(r"$a$")
+axs[0, 2].axvline(a_true, linestyle="--", color="red")
+
+axs[1, 0].set_title(r"$\tau^2_1$")
+axs[1, 0].axvline(noise_variance[0], linestyle="--", color="red")
+
+axs[1, 1].set_title(r"$\tau^2_2$")
+axs[1, 1].axvline(noise_variance[1], linestyle="--", color="red")
+
+axs[1, 2].set_title(r"$\beta_1$")
+axs[1, 2].axvline(mean_intercepts[0], linestyle="--", color="red")
+
+axs[2, 0].set_title(r"$\beta_2$")
+axs[2, 0].axvline(mean_intercepts[1], linestyle="--", color="red")
+
+plt.savefig("./out/stan_out/posterior_distributions_simulation.png", dpi=300)
+plt.show()
+plt.close()
+
 
 import ipdb
 

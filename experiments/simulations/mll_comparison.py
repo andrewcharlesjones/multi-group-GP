@@ -20,7 +20,7 @@ font = {"size": 20}
 matplotlib.rc("font", **font)
 matplotlib.rcParams["text.usetex"] = True
 
-n_repeats = 1
+n_repeats = 20
 alpha_list = alpha_list = [np.power(10, x * 1.0) for x in np.arange(-5, 3)]
 noise_variance_true = 0.1
 n_groups = 2
@@ -52,14 +52,16 @@ def separate_GP_experiment():
         ######### Fit SGP ##########
         ############################
         sep_gp = GP(kernel=RBF())
-        curr_params = np.array(
-            [
-                0.0,  # mean
-                np.log(noise_variance_true),  # noise variance
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-            ]
-        )
+        curr_params = {
+            "params": np.array(
+                [
+                    0.0,  # mean
+                    np.log(noise_variance_true),  # noise variance
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                ]
+            )
+        }
         ll_sep_group0 = sep_gp.log_marginal_likelihood(curr_params, X0, Y0)
         ll_sep_group1 = sep_gp.log_marginal_likelihood(curr_params, X1, Y1)
         ll_sep_gp_results[ii] = ll_sep_group0 + ll_sep_group1
@@ -81,15 +83,17 @@ def separate_GP_experiment():
         Y = np.concatenate([Y0, Y1])
         for jj, alpha in enumerate(alpha_list):
             mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
-            curr_params = np.array(
-                [
-                    0.0,  # mean
-                    np.log(noise_variance_true),  # noise variance
-                    np.log(1.0),  # output variance
-                    np.log(alpha),  # alpha
-                    np.log(1.0),  # length scale
-                ]
-            )
+            curr_params = {
+                "params": np.array(
+                    [
+                        0.0,  # mean
+                        np.log(noise_variance_true),  # noise variance
+                        np.log(1.0),  # output variance
+                        np.log(alpha),  # alpha
+                        np.log(1.0),  # length scale
+                    ]
+                )
+            }
             curr_group_dists = np.ones((2, 2)) - np.eye(2)
             ll_mggp = mggp.log_marginal_likelihood(
                 curr_params, X, Y, groups=X_groups, group_distances=curr_group_dists
@@ -98,7 +102,7 @@ def separate_GP_experiment():
 
     ## Plot MGGP results
     results_df = pd.melt(pd.DataFrame(ll_mggp_results, columns=alpha_list))
-    sns.lineplot(data=results_df, x="variable", y="value", label="MGGP", ci="sd")
+    sns.lineplot(data=results_df, x="variable", y="value", label="Multi-Group", ci="sd")
 
     ## Plot sep GP results
     gp_results_df = pd.melt(
@@ -111,7 +115,7 @@ def separate_GP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Separate GPs",
+        label="Separate",
         color="red",
         ci="sd",
     )
@@ -127,7 +131,7 @@ def separate_GP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Union GPs",
+        label="Union",
         color="green",
         ci="sd",
     )
@@ -162,14 +166,16 @@ def union_GP_experiment():
         ######### Fit SGP ##########
         ############################
         sep_gp = GP(kernel=RBF())
-        curr_params = np.array(
-            [
-                0.0,  # mean
-                np.log(noise_variance_true),  # noise variance
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-            ]
-        )
+        curr_params = {
+            "params": np.array(
+                [
+                    0.0,  # mean
+                    np.log(noise_variance_true),  # noise variance
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                ]
+            )
+        }
         ll_sep_group0 = sep_gp.log_marginal_likelihood(curr_params, X0, Y0)
         ll_sep_group1 = sep_gp.log_marginal_likelihood(curr_params, X1, Y1)
         ll_sep_gp_results[ii] = ll_sep_group0 + ll_sep_group1
@@ -191,15 +197,17 @@ def union_GP_experiment():
         Y = np.concatenate([Y0, Y1])
         for jj, alpha in enumerate(alpha_list):
             mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
-            curr_params = np.array(
-                [
-                    0.0,  # mean
-                    np.log(noise_variance_true),  # noise variance
-                    np.log(1.0),  # output variance
-                    np.log(alpha),  # alpha
-                    np.log(1.0),  # length scale
-                ]
-            )
+            curr_params = {
+                "params": np.array(
+                    [
+                        0.0,  # mean
+                        np.log(noise_variance_true),  # noise variance
+                        np.log(1.0),  # output variance
+                        np.log(alpha),  # alpha
+                        np.log(1.0),  # length scale
+                    ]
+                )
+            }
             curr_group_dists = np.ones((2, 2)) - np.eye(2)
             ll_mggp = mggp.log_marginal_likelihood(
                 curr_params, X, Y, groups=X_groups, group_distances=curr_group_dists
@@ -208,7 +216,7 @@ def union_GP_experiment():
 
     ## Plot MGGP results
     results_df = pd.melt(pd.DataFrame(ll_mggp_results, columns=alpha_list))
-    sns.lineplot(data=results_df, x="variable", y="value", label="MGGP", ci="sd")
+    sns.lineplot(data=results_df, x="variable", y="value", label="Multi-Group", ci="sd")
 
     ## Plot sep GP results
     gp_results_df = pd.melt(
@@ -221,7 +229,7 @@ def union_GP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Separate GPs",
+        label="Separate",
         color="red",
         ci="sd",
     )
@@ -237,7 +245,7 @@ def union_GP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Union GPs",
+        label="Union",
         color="green",
         ci="sd",
     )
@@ -281,16 +289,18 @@ def HGP_experiment():
         X = np.concatenate([X0, X1], axis=0)
         hgp_kernel = HGPKernel(within_group_kernel=RBF(), between_group_kernel=RBF())
         hgp = GP(kernel=hgp_kernel, is_hgp=True)
-        curr_params = np.array(
-            [
-                0.0,  # mean
-                np.log(noise_variance_true),  # noise variance
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-            ]
-        )
+        curr_params = {
+            "params": np.array(
+                [
+                    0.0,  # mean
+                    np.log(noise_variance_true),  # noise variance
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                ]
+            )
+        }
         ll_hgp = hgp.log_marginal_likelihood(curr_params, X, Y, groups=X_groups)
         ll_hgp_results[ii] = ll_hgp
 
@@ -299,15 +309,17 @@ def HGP_experiment():
         ############################
         for jj, alpha in enumerate(alpha_list):
             mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
-            curr_params = np.array(
-                [
-                    0.0,  # mean
-                    np.log(noise_variance_true),  # noise variance
-                    np.log(1.0),  # output variance
-                    np.log(alpha),  # alpha
-                    np.log(1.0),  # length scale
-                ]
-            )
+            curr_params = {
+                "params": np.array(
+                    [
+                        0.0,  # mean
+                        np.log(noise_variance_true),  # noise variance
+                        np.log(1.0),  # output variance
+                        np.log(alpha),  # alpha
+                        np.log(1.0),  # length scale
+                    ]
+                )
+            }
             curr_group_dists = np.ones((2, 2)) - np.eye(2)
             ll_mggp = mggp.log_marginal_likelihood(
                 curr_params, X, Y, groups=X_groups, group_distances=curr_group_dists
@@ -316,7 +328,7 @@ def HGP_experiment():
 
     # plt.figure(figsize=(7, 5))
     results_df = pd.melt(pd.DataFrame(ll_mggp_results, columns=alpha_list))
-    sns.lineplot(data=results_df, x="variable", y="value", label="MGGP", ci="sd")
+    sns.lineplot(data=results_df, x="variable", y="value", label="Multi-Group", ci="sd")
 
     gp_results_df = pd.melt(
         pd.DataFrame(
@@ -328,7 +340,7 @@ def HGP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="HGP",
+        label="Hierarchical",
         color="orange",
         ci="sd",
     )
@@ -379,14 +391,16 @@ def MGGP_experiment():
         ######### Fit SGP ##########
         ############################
         sep_gp = GP(kernel=RBF())
-        curr_params = np.array(
-            [
-                0.0,  # mean
-                np.log(noise_variance_true),  # noise variance
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-            ]
-        )
+        curr_params = {
+            "params": np.array(
+                [
+                    0.0,  # mean
+                    np.log(noise_variance_true),  # noise variance
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                ]
+            )
+        }
         ll_sep_group0 = sep_gp.log_marginal_likelihood(curr_params, X0, Y0)
         ll_sep_group1 = sep_gp.log_marginal_likelihood(curr_params, X1, Y1)
         ll_sep_gp_results[ii] = ll_sep_group0 + ll_sep_group1
@@ -405,16 +419,18 @@ def MGGP_experiment():
         ############################
         hgp_kernel = HGPKernel(within_group_kernel=RBF(), between_group_kernel=RBF())
         hgp = GP(kernel=hgp_kernel, is_hgp=True)
-        curr_params = np.array(
-            [
-                0.0,  # mean
-                np.log(noise_variance_true),  # noise variance
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-                np.log(1.0),  # output variance
-                np.log(1.0),  # length scale
-            ]
-        )
+        curr_params = {
+            "params": np.array(
+                [
+                    0.0,  # mean
+                    np.log(noise_variance_true),  # noise variance
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                    np.log(1.0),  # output variance
+                    np.log(1.0),  # length scale
+                ]
+            )
+        }
         ll_hgp = hgp.log_marginal_likelihood(curr_params, X, Y, groups=X_groups)
         ll_hgp_results[ii] = ll_hgp
 
@@ -423,15 +439,17 @@ def MGGP_experiment():
         ############################
         for jj, alpha in enumerate(alpha_list):
             mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
-            curr_params = np.array(
-                [
-                    0.0,  # mean
-                    np.log(noise_variance_true),  # noise variance
-                    np.log(1.0),  # output variance
-                    np.log(alpha),  # alpha
-                    np.log(1.0),  # length scale
-                ]
-            )
+            curr_params = {
+                "params": np.array(
+                    [
+                        0.0,  # mean
+                        np.log(noise_variance_true),  # noise variance
+                        np.log(1.0),  # output variance
+                        np.log(alpha),  # alpha
+                        np.log(1.0),  # length scale
+                    ]
+                )
+            }
             curr_group_dists = np.ones((2, 2)) - np.eye(2)
             ll_mggp = mggp.log_marginal_likelihood(
                 curr_params, X, Y, groups=X_groups, group_distances=curr_group_dists
@@ -440,7 +458,7 @@ def MGGP_experiment():
 
     # plt.figure(figsize=(7, 5))
     results_df = pd.melt(pd.DataFrame(ll_mggp_results, columns=alpha_list))
-    sns.lineplot(data=results_df, x="variable", y="value", label="MGGP", ci="sd")
+    sns.lineplot(data=results_df, x="variable", y="value", label="Multi-Group", ci="sd")
 
     gp_results_df = pd.melt(
         pd.DataFrame(
@@ -452,7 +470,7 @@ def MGGP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Separate GPs",
+        label="Separate",
         color="red",
         ci="sd",
     )
@@ -467,7 +485,7 @@ def MGGP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="Union GP",
+        label="Union",
         color="green",
         ci="sd",
     )
@@ -482,7 +500,7 @@ def MGGP_experiment():
         data=gp_results_df,
         x="variable",
         y="value",
-        label="HGP",
+        label="Hierarchical",
         color="orange",
         ci="sd",
     )
@@ -507,16 +525,16 @@ if __name__ == "__main__":
     plt.figure(figsize=(28, 7))
     plt.subplot(141)
     separate_GP_experiment()
-    plt.title(r"Data generated from: $\textbf{Separated GP}$")
+    plt.title(r"Data generated from: $\textbf{Separate}$")
     plt.subplot(142)
     union_GP_experiment()
-    plt.title(r"Data generated from: $\textbf{Union GP}$")
+    plt.title(r"Data generated from: $\textbf{Union}$")
     plt.subplot(143)
     HGP_experiment()
-    plt.title(r"Data generated from: $\textbf{Hierarchical GP}$")
+    plt.title(r"Data generated from: $\textbf{Hierarchical}$")
     plt.subplot(144)
     MGGP_experiment()
-    plt.title(r"Data generated from: $\textbf{Multi-group GP}$")
+    plt.title(r"Data generated from: $\textbf{Multi-Group}$")
     plt.savefig("../../plots/simulation_gp_comparison.png")
     plt.show()
 

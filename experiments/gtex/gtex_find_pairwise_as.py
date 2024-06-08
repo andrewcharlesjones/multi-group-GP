@@ -201,9 +201,7 @@ for ii in range(n_repeats):
             ############################
 
             mggp = GP(kernel=MultiGroupRBF(), is_mggp=True)
-            mggp.fit(
-                X, Y, groups_ints, verbose=True, group_specific_noise_terms=True
-            )
+            mggp.fit(X, Y, groups_ints, verbose=True, group_specific_noise_terms=True)
 
             estimated_a = np.exp(mggp.params[-2])
             a_matrix[ii, jj, kk] = estimated_a

@@ -13,5 +13,6 @@ def embed_distance_matrix(distance_matrix):
     C = jnp.eye(n_groups) - 1 / n_groups * jnp.ones((n_groups, n_groups))
     B = -0.5 * C @ D2 @ C
     eigvals, E = jnp.linalg.eigh(B)
-    embedding = E @ jnp.diag(jnp.sqrt(eigvals + 1e-6))
+    embedding = E @ jnp.diag(jnp.sqrt(eigvals + 1e-4))
+    # import ipdb; ipdb.set_trace()
     return embedding

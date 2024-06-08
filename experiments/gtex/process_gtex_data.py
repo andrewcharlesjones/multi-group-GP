@@ -94,7 +94,6 @@ for ii in tqdm(range(len(DATA_FILES))):
     data_high_variance = data[high_variance_genes]
 
     ## Get subject ID and drop duplicate subjects
-    import ipdb; ipdb.set_trace()
     data_high_variance["SUBJID"] = (
         data_high_variance.index.str.split("-").str[:2].str.join("-")
     )
@@ -113,7 +112,6 @@ for ii in tqdm(range(len(DATA_FILES))):
 
     assert data_high_variance.shape[1] == N_GENES
     assert np.array_equal(data_high_variance.columns.values, high_variance_genes)
-    
 
     data_high_variance.to_csv(curr_gene_exp_fname)
     metadata_IT_data.to_csv(
@@ -134,7 +132,7 @@ for ii in tqdm(range(len(DATA_FILES))):
     # 	score = reg.score(regX, curr_output)
     # 	scores[jj] = score
     # 	print("{}: {}".format(regY.columns.values[jj], score))
-    # import ipdb; ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
 
 import ipdb
 
