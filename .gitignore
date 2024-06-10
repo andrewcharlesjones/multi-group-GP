@@ -3,7 +3,6 @@
 *.sh
 *.png
 *.Rhistory
-*.stan
 *.o
 *.zip
 
