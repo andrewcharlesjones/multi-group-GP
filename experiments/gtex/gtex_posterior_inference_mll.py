@@ -153,17 +153,54 @@ data = {
     "y": Y,
     "groups": groups.astype(int),
     "group_dist_mat": group_dist_mat,
+    "lengthscale": 1,
+    "alpha": 1
 }
 
 
 
 ## Load model
-with open(pjoin(MODEL_DIR, "mggp_collapsed.stan"), "r") as file:
+with open(pjoin(MODEL_DIR, "mggp_collapsed_fixed_ab.stan"), "r") as file:
     model_code = file.read()
 
 
+
+
+a_values = np.linspace(1e-3, 1, 5)
+b_values = np.linspace(1e-3, 1, 5)
+
+marginal_likelihoods = np.zeros((len(a_values), len(b_values)))
+
+def calculate_marginal_likelihood(a, b):
+    data = {
+        "P": 1,
+        "ngroups": n_groups,
+        "N": X.shape[0],
+        "x": X.reshape(-1, 1),
+        "design": groups_oh,
+        "y": Y,
+        "groups": groups.astype(int),
+        "group_dist_mat": group_dist_mat,
+        "lengthscale": b,
+        "alpha": a
+    }
+    posterior = stan.build(model_code, data=data)
+    fit = posterior.sample(
+        num_chains=N_CHAINS, num_warmup=N_WARMUP_ITER, num_samples=N_MCMC_ITER
+    )
+    log_lik = fit.get("lp__")
+    marginal_likelihood = np.mean(log_lik)
+    return marginal_likelihood
+
+
+for i, a in enumerate(a_values):
+    for j, b in enumerate(b_values):
+        marginal_likelihoods[i, j] = calculate_marginal_likelihood(a, b)
+
+
+import ipdb; ipdb.set_trace()
+
 # Set up model
-posterior = stan.build(model_code, data=data)
 
 
 
@@ -174,19 +211,6 @@ fit = posterior.sample(
 )
 # print(fit['log_lik'])
 
-def calculate_marginal_likelihood(a, b):
-    data = {
-        'a': a,
-        'b': b,
-        // Include other necessary data for your model
-    }
-    fit = posterior.sample(data=data, num_chains=4, num_samples=1000)
-    log_lik = fit['log_lik']
-    marginal_likelihood = np.exp(np.mean(log_lik))
-    return marginal_likelihood
-
-
-import ipdb; ipdb.set_trace()
 
 arviz_summary = az.summary(fit)
 
